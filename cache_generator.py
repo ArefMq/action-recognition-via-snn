@@ -1,8 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# misc imports
 import os
 from collections import OrderedDict
 
@@ -93,8 +89,8 @@ def serialize_events(x_data, y_data, ev_times, image_reduce_factor, frame_length
         desired_width = ORIGINAL_IMAGE_WIDTH / image_reduce_factor
         desired_height = ORIGINAL_IMAGE_HEIGHT / image_reduce_factor
 
-        retina = np.zeros([desired_height, desired_width])
-        retina[event_x[:, 0] / image_reduce_factor, event_x[:, 1] / image_reduce_factor] = 1
+        retina = np.zeros([desired_width, desired_height])
+        retina[event_x[:, 1] / image_reduce_factor, event_x[:, 0] / image_reduce_factor] = 1
 
         frame_y = np.round(np.mean(event_y))
         current_time += frame_length_us
@@ -162,9 +158,6 @@ def cache_data(trail,
                output_data_path,
                image_reduce_factor=2,
                frame_length_us=9900,  # almost the same delay in each frame in the DVS data
-               frame_count=100,  # window_size = frame_count * frame_length_us
-               batch_size=16,
-               frame_shuffle=False
                ):
     t = TimeExpector()
 
@@ -190,7 +183,7 @@ def cache_data(trail,
     notify('all done')
 
 
-def data_loader(trail, dataset_folder_path, condition_limit=None):
+def data_loader(trail, dataset_folder_path, cache_folder_path, condition_limit=None):
     dataset_path = dataset_folder_path + 'cleaned_cache_' + trail
     file_list = load_trail_files('trials_to_%s.txt' % trail, dataset_folder_path)
 
@@ -200,10 +193,39 @@ def data_loader(trail, dataset_folder_path, condition_limit=None):
         if condition_limit is not None and light_condition not in condition_limit:
             continue
 
-        x_data = np.load(file='%s/x_%s_%d.npy' % (dataset_path, trail, counter + 1))
-        y_data = np.load(file='%s/y_%s_%d.npy' % (dataset_path, trail, counter + 1))
+        x_data = np.load(file='%s/x_%s_%d.npy' % (cache_folder_path, trail, counter + 1))
+        y_data = np.load(file='%s/y_%s_%d.npy' % (cache_folder_path, trail, counter + 1))
 
         yield x_data, y_data
 
 
-__all__ = ['data_loader', 'cache_data']
+__all__ = ['data_loader', 'cache_data', 'GESTURE_MAPPING']
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    from random import randint
+
+    CACHE_FOLDER_PATH = "/Users/aref/dvs-dataset/Cached/"
+    DATASET_FOLDER_PATH = "/Users/aref/dvs-dataset/DvsGesture/"
+    FRAME_TO_SHOW = 100
+
+    plt.figure(0)
+    plt.ion()
+    plt.show()
+
+    img = np.zeros((64, 64))
+    for x, y in data_loader('test', DATASET_FOLDER_PATH, CACHE_FOLDER_PATH, condition_limit=['natural']):
+        idx = randint(0, x.shape[0] - FRAME_TO_SHOW - 1)
+        for i in range(FRAME_TO_SHOW):
+            img *= 0.7
+            img += np.reshape(x[idx + i, :], (64, 64))
+            label = y[idx + i]
+
+            plt.imshow(img, cmap='gray', vmin=0, vmax=1)
+            plt.draw()
+            plt.title('%d - %s' % (i, GESTURE_MAPPING[label]))
+            plt.pause(0.00001)
+            plt.clf()
+        break
+    print('done')
