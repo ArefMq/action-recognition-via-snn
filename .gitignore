@@ -278,4 +278,5 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 .idea
+*notify.py
 # End of https://www.gitignore.io/api/linux,macos,python,pycharm,windows,jupyternotebooks
