@@ -58,6 +58,21 @@ def data_augment(*args, **kwargs):
             yield output_x[i, ...], output_y[i]
 
 
+def batchify(*args, **kwargs):
+    batch_size = kwargs.pop('batch_size', 16)
+
+    batch_x = []
+    batch_y = []
+    for x, y in data_augment(*args, **kwargs):
+        batch_x.append(x)
+        batch_y.append(y)
+
+        if len(batch_x) >= batch_size:
+            yield np.array(batch_x), np.array(batch_y)
+            batch_x = []
+            batch_y = []
+
+
 if __name__ == "__main__":
     CACHE_FOLDER_PATH = "/Users/aref/dvs-dataset/Cached/"
     DATASET_FOLDER_PATH = "/Users/aref/dvs-dataset/DvsGesture/"

@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*- 
 
+import os
+import requests
+
+
+_URL = os.environ.get('NOTIFY_URL', None)
+_SLACK_NOTIFY = _URL is not None
+
+
 def notify(*msgs, **kwargs):
     mark = kwargs.get('mark', None)
     title = kwargs.get('title', None)
@@ -28,6 +36,24 @@ def notify(*msgs, **kwargs):
         print('%s) \t%s' % (title, msg))
     else:
         print(msg)
+    if not _SLACK_NOTIFY:
+        return
+
+    data = {
+        'text': msg
+    }
+    if channel is not None:
+        data['channel'] = '#%s' % channel
+    if title is not None:
+        data['name'] = title
+    if icon is not None:
+        data['icon'] = ':%s:' % icon
+
+    try:
+        requests.post(_URL, json=data)
+    except:
+        print('     can not write to channel...')
+
 
 
 if __name__ == "__main__":
