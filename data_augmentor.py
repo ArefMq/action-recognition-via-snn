@@ -6,6 +6,7 @@ from cache_generator import data_loader, GESTURE_MAPPING
 
 def data_augment(*args, **kwargs):
     max_augmentation = kwargs.pop('max_augmentation', 1)
+    aug_enabled = kwargs.pop('augmentation', True)
     aug_x_offset = kwargs.pop('aug_x_offset', 10)
     aug_y_offset = kwargs.pop('aug_y_offset', 3)
     aug_frame_offset = kwargs.pop('aug_f_offset', 10)
@@ -20,11 +21,16 @@ def data_augment(*args, **kwargs):
         last_label = None
         buffer_x = []
 
+        # here we augment data until all classes have the same amount of data
         while max_hist is None or any([i < max_hist for _, i in label_histogram.items()]):
-            x_offset = randint(-aug_x_offset, aug_x_offset)
-            y_offset = randint(-aug_y_offset, aug_y_offset)
-            frame_offset = randint(0, aug_frame_offset)
-            #             print x_offset, y_offset, frame_offset
+            if aug_enabled and max_hist is not None:
+                x_offset = randint(-aug_x_offset, aug_x_offset)
+                y_offset = randint(-aug_y_offset, aug_y_offset)
+                frame_offset = randint(0, aug_frame_offset)
+            else:
+                x_offset = 0
+                y_offset = 0
+                frame_offset = 0
 
             for i in range(frame_offset, data_x.shape[0]):
                 current_x = np.reshape(data_x[i], (64, 64))
@@ -46,6 +52,10 @@ def data_augment(*args, **kwargs):
                     buffer_x = []
                     last_label = current_y
                 buffer_x.append(current_x)
+
+            # if the augmentation is false, then we ignore adding any more data
+            if not aug_enabled:
+                break
 
             if max_hist is None:
                 max_hist = label_histogram[max(label_histogram, key=label_histogram.get)] * max_augmentation
