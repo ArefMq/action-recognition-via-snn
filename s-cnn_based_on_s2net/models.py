@@ -364,19 +364,18 @@ class SpikingConv3DLayer(torch.nn.Module):
     def forward(self, x):
         batch_size = x.shape[0]
 
-        conv_x = torch.nn.functional.conv3d(x, self.w, padding=tuple(
-            np.ceil(((self.kernel_size - 1) * self.dilation) / 2).astype(int)),
+        stride = tuple(self.stride)
+        padding = tuple(np.ceil(((self.kernel_size - 1) * self.dilation) / 2).astype(int))
+        conv_x = torch.nn.functional.conv3d(x, self.w, padding=padding,
                                             dilation=tuple(self.dilation),
-                                            stride=tuple(self.stride))
+                                            stride=stride)
+
         conv_x = conv_x[:, :, :, :self.output_shape[0], :self.output_shape[1]]
         nb_steps = conv_x.shape[2]
 
-        # membrane potential 
         mem = torch.zeros((batch_size, self.out_channels, *self.output_shape), dtype=x.dtype, device=x.device)
-        # output spikes
         spk = torch.zeros((batch_size, self.out_channels, *self.output_shape), dtype=x.dtype, device=x.device)
 
-        # output spikes recording
         spk_rec = torch.zeros((batch_size, self.out_channels, nb_steps, *self.output_shape), dtype=x.dtype,
                               device=x.device)
 
@@ -387,8 +386,6 @@ class SpikingConv3DLayer(torch.nn.Module):
         norm = (self.w ** 2).sum((1, 2, 3, 4))
 
         for t in range(nb_steps):
-
-            # reset term
             if self.lateral_connections:
                 rst = torch.einsum("abcd,be ->aecd", spk, d)
             else:
@@ -398,7 +395,6 @@ class SpikingConv3DLayer(torch.nn.Module):
             if self.recurrent:
                 input_ = input_ + torch.einsum("abcd,be->aecd", spk, self.v)
 
-            # membrane potential update
             mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
             mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + self.eps)) - b
 
@@ -406,33 +402,28 @@ class SpikingConv3DLayer(torch.nn.Module):
 
             spk_rec[:, :, t, :, :] = spk
 
-            # save spk_rec for plotting
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
 
         loss = 0.5 * (spk_rec ** 2).mean()
 
         if self.flatten_output:
-
             output = torch.transpose(spk_rec, 1, 2).contiguous()
             output = output.view(batch_size, nb_steps, self.out_channels * np.prod(self.output_shape))
-
         else:
-
             output = spk_rec
 
         return output, loss
 
     def reset_parameters(self):
-
         torch.nn.init.normal_(self.w, mean=self.w_init_mean,
                               std=self.w_init_std * np.sqrt(1. / (self.in_channels * np.prod(self.kernel_size))))
         if self.recurrent:
-            torch.nn.init.normal_(self.v, mean=self.w_init_mean, std=self.w_init_std * np.sqrt(1. / self.out_channels))
+            torch.nn.init.normal_(self.v, mean=self.w_init_mean,
+                                  std=self.w_init_std * np.sqrt(1. / self.out_channels))
         torch.nn.init.normal_(self.beta, mean=0.7, std=0.01)
         torch.nn.init.normal_(self.b, mean=1., std=0.01)
 
     def clamp(self):
-
         self.beta.data.clamp_(0., 1.)
         self.b.data.clamp_(min=0.)
 
@@ -454,6 +445,7 @@ class ReadoutLayer(torch.nn.Module):
         self.time_reduction = time_reduction
 
         self.w = torch.nn.Parameter(torch.empty((input_shape, output_shape)), requires_grad=True)
+#         self.w = torch.nn.Parameter(torch.empty((10, 20)), requires_grad=True)
         if time_reduction == "max":
             self.beta = torch.nn.Parameter(torch.tensor(0.7 * np.ones((1))), requires_grad=True)
         self.b = torch.nn.Parameter(torch.empty(output_shape), requires_grad=True)
@@ -464,43 +456,32 @@ class ReadoutLayer(torch.nn.Module):
         self.mem_rec_hist = None
 
     def forward(self, x):
-
         batch_size = x.shape[0]
-
         h = torch.einsum("abc,cd->abd", x, self.w)
-
         norm = (self.w ** 2).sum(0)
 
         if self.time_reduction == "max":
             nb_steps = x.shape[1]
-            # membrane potential 
             mem = torch.zeros((batch_size, self.output_shape), dtype=x.dtype, device=x.device)
-
-            # memrane potential recording
             mem_rec = torch.zeros((batch_size, nb_steps, self.output_shape), dtype=x.dtype, device=x.device)
 
             for t in range(nb_steps):
-                # membrane potential update
                 mem = mem * self.beta + (1 - self.beta) * h[:, t, :]
                 mem_rec[:, t, :] = mem
 
             output = torch.max(mem_rec, 1)[0] / (norm + 1e-8) - self.b
 
         elif self.time_reduction == "mean":
-
             mem_rec = h
             output = torch.mean(mem_rec, 1) / (norm + 1e-8) - self.b
 
-        # save mem_rec for plotting
         self.mem_rec_hist = mem_rec.detach().cpu().numpy()
-
         loss = None
-
         return output, loss
 
     def reset_parameters(self):
         torch.nn.init.normal_(self.w, mean=self.w_init_mean,
-                              std=self.w_init_std * np.sqrt(1. / (self.input_shape)))
+                              std=self.w_init_std * np.sqrt(1. / np.prod(self.input_shape)))
 
         if self.time_reduction == "max":
             torch.nn.init.normal_(self.beta, mean=0.7, std=0.01)
@@ -532,3 +513,4 @@ class SurrogateHeaviside(torch.autograd.Function):
         grad = grad_input * torch.sigmoid(SurrogateHeaviside.sigma * input) * torch.sigmoid(
             -SurrogateHeaviside.sigma * input)
         return grad
+
