@@ -2,9 +2,9 @@ import numpy as np
 import os
 from collections import OrderedDict
 
-from time_expector import TimeExpector
-from notify import notify
-from reader import read_file_all
+from tools.time_expector import TimeExpector
+from tools.notify import notify
+from data.reader import read_file_all
 
 ORIGINAL_IMAGE_HEIGHT = 128
 ORIGINAL_IMAGE_WIDTH = 128

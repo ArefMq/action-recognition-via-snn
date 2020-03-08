@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from random import randint
-from cache_generator import data_loader, GESTURE_MAPPING
+from data.cache_generator import data_loader, GESTURE_MAPPING
 
 
 def data_augment(*args, **kwargs):
