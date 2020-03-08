@@ -184,10 +184,19 @@ def cache_data(trail,
 
 
 def data_loader(trail, dataset_folder_path, cache_folder_path, condition_limit=None):
+    working_proof_mode = False
+    has_yield_anything = False
+    if trail == 'working_proof':
+        trail = 'train'
+        working_proof_mode = True
+
     dataset_path = dataset_folder_path + 'cleaned_cache_' + trail
     file_list = load_trail_files('trials_to_%s.txt' % trail, dataset_folder_path)
 
     for counter, f in enumerate(file_list):
+        if working_proof_mode and has_yield_anything:
+            return
+
         # FIXME: This line is not satisfactory...
         light_condition = f[0].split('/')[-1].split('.')[0][len('userXX_'):]
         if condition_limit is not None and light_condition not in condition_limit:
@@ -196,6 +205,7 @@ def data_loader(trail, dataset_folder_path, cache_folder_path, condition_limit=N
         x_data = np.load(file='%s/x_%s_%d.npy' % (cache_folder_path, trail, counter + 1))
         y_data = np.load(file='%s/y_%s_%d.npy' % (cache_folder_path, trail, counter + 1))
 
+        has_yield_anything = True
         yield x_data, y_data
 
 
