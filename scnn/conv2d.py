@@ -1,13 +1,18 @@
 import torch
 import numpy as np
 
+from .default_configs import *
+
 
 class SpikingConv2DLayer(torch.nn.Module):
+    IS_CONV = True
+    IS_SPIKING = True
+
     def __init__(self, input_shape, output_shape,
                  in_channels, out_channels, kernel_size, dilation,
-                 spike_fn, w_init_mean, w_init_std, recurrent=False,
+                 spike_fn, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD, recurrent=False,
                  lateral_connections=True,
-                 eps=1e-8, stride=(1, 1), flatten_output=False):
+                 eps=EPSILON, stride=(1, 1), flatten_output=False):
 
         super(SpikingConv2DLayer, self).__init__()
 

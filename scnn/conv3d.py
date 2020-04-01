@@ -1,20 +1,26 @@
 import torch
 import numpy as np
 
+from .default_configs import *
+
+
 class SpikingConv3DLayer(torch.nn.Module):
+    IS_CONV = True
+    IS_SPIKING = True
+
     def __init__(self, input_shape, output_shape,
-                 in_channels, out_channels, kernel_size, dilation,
-                 spike_fn, w_init_mean, w_init_std, recurrent=False,
+                 input_channels, output_channels, kernel_size, dilation,
+                 spike_fn, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD, recurrent=False,
                  lateral_connections=True,
-                 eps=1e-8, stride=(1, 1, 1), flatten_output=False):
+                 eps=EPSILON, stride=(1, 1, 1), flatten_output=False):
 
         super(SpikingConv3DLayer, self).__init__()
 
         self.kernel_size = np.array(kernel_size)
         self.dilation = np.array(dilation)
         self.stride = np.array(stride)
-        self.in_channels = in_channels
-        self.out_channels = out_channels
+        self.in_channels = input_channels
+        self.out_channels = output_channels
 
         self.input_shape = input_shape
         self.output_shape = output_shape
@@ -28,11 +34,11 @@ class SpikingConv3DLayer(torch.nn.Module):
         self.w_init_mean = w_init_mean
         self.w_init_std = w_init_std
 
-        self.w = torch.nn.Parameter(torch.empty((out_channels, in_channels, *kernel_size)), requires_grad=True)
+        self.w = torch.nn.Parameter(torch.empty((output_channels, input_channels, *kernel_size)), requires_grad=True)
         if recurrent:
-            self.v = torch.nn.Parameter(torch.empty((out_channels, out_channels)), requires_grad=True)
+            self.v = torch.nn.Parameter(torch.empty((output_channels, output_channels)), requires_grad=True)
         self.beta = torch.nn.Parameter(torch.empty(1), requires_grad=True)
-        self.b = torch.nn.Parameter(torch.empty(out_channels), requires_grad=True)
+        self.b = torch.nn.Parameter(torch.empty(output_channels), requires_grad=True)
 
         self.reset_parameters()
         self.clamp()

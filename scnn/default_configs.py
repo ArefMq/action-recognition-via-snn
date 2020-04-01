@@ -1,0 +1,4 @@
+W_INIT_STD = 0.15
+W_INIT_MEAN = 0.1
+
+EPSILON = 1e-8

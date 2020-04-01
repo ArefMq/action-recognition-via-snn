@@ -1,12 +1,14 @@
 import math
 import torch
 from torch.optim.optimizer import Optimizer, required
+from .default_configs import *
 
 # PyTorch implementation of Rectified Adam from https://github.com/LiyuanLucasLiu/RAdam
 
+
 class RAdam(Optimizer):
 
-    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0, degenerated_to_sgd=True):
+    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=EPSILON, weight_decay=0, degenerated_to_sgd=True):
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:

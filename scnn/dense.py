@@ -1,9 +1,15 @@
 import torch
 import numpy as np
 
+from .default_configs import *
+
 
 class SpikingDenseLayer(torch.nn.Module):
-    def __init__(self, input_shape, output_shape, spike_fn, w_init_mean, w_init_std, recurrent=False, lateral_connections=True, eps=1e-8):
+    IS_CONV = False
+    IS_SPIKING = True
+
+    def __init__(self, input_shape, output_shape, spike_fn, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD,
+                 recurrent=False, lateral_connections=True, eps=EPSILON):
         super(SpikingDenseLayer, self).__init__()
 
         self.input_shape = input_shape
@@ -26,10 +32,12 @@ class SpikingDenseLayer(torch.nn.Module):
         self.reset_parameters()
         self.clamp()
         self.spk_rec_hist = None
+        self.mem_rec_hist = None
         self.training = True
 
     def forward(self, x):
         batch_size = x.shape[0]
+        print('batch size:', batch_size)
 
         h = torch.einsum("abc,cd->abd", x, self.w)
         nb_steps = h.shape[1]
@@ -41,12 +49,14 @@ class SpikingDenseLayer(torch.nn.Module):
 
         # output spikes recording
         spk_rec = torch.zeros((batch_size, nb_steps, self.output_shape), dtype=x.dtype, device=x.device)
+        self.mem_rec_hist = torch.zeros((batch_size, nb_steps, self.output_shape), dtype=x.dtype, device=x.device)
 
         if self.lateral_connections:
             d = torch.einsum("ab, ac -> bc", self.w, self.w)
 
         norm = (self.w ** 2).sum(0)
 
+        print('nb steps', nb_steps)
         for t in range(nb_steps):
             # reset term
             if self.lateral_connections:
@@ -62,12 +72,16 @@ class SpikingDenseLayer(torch.nn.Module):
             mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
             mthr = torch.einsum("ab,b->ab", mem, 1. / (norm + self.eps)) - self.b
 
+            print('mthr', mthr)
             spk = self.spike_fn(mthr)
+            print('spk', spk)
 
             spk_rec[:, t, :] = spk
+            self.mem_rec_hist[:, t, :] = mem
 
             # save spk_rec for plotting
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
+        self.mem_rec_hist = self.mem_rec_hist.detach().cpu().numpy()
         loss = 0.5 * (spk_rec ** 2).mean()
         return spk_rec, loss
 

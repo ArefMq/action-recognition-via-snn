@@ -1,5 +1,5 @@
 import torch
-import numpy as np
+
 
 class SurrogateHeaviside(torch.autograd.Function):
     # Activation function with surrogate gradient
