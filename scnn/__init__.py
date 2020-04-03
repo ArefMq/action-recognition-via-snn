@@ -1,13 +1,39 @@
 import torch
 
+from .conv1d import SpikingConv1DLayer
+from .conv2d import SpikingConv2DLayer
+from .conv3d import SpikingConv3DLayer
+from .pool2d import SpikingPool2DLayer
+from .dense import SpikingDenseLayer
+from .readout import ReadoutLayer
+from .heaviside import SurrogateHeaviside
+
 
 class SNN(torch.nn.Module):
     def __init__(self, spike_fn=None):
         super(SNN, self).__init__()
         self.layers = []
-        self.default_spike_fn = spike_fn
+        self.default_spike_fn = spike_fn if spike_fn is not None else SurrogateHeaviside.apply
         self.last_layer_shape = None
         self.last_layer_is_conv = None
+
+    def add_conv1d(self, **kwargs):
+        self.add_layer(SpikingConv1DLayer, **kwargs)
+
+    def add_conv2d(self, **kwargs):
+        self.add_layer(SpikingConv2DLayer, **kwargs)
+
+    def add_conv3d(self, **kwargs):
+        self.add_layer(SpikingConv3DLayer, **kwargs)
+
+    def add_pool2d(self, **kwargs):
+        self.add_layer(SpikingPool2DLayer, **kwargs)
+
+    def add_dense(self, **kwargs):
+        self.add_layer(SpikingDenseLayer, **kwargs)
+
+    def add_readout(self, **kwargs):
+        self.add_layer(ReadoutLayer, **kwargs)
 
     def add_layer(self, layer, **kwargs):
         if layer.IS_SPIKING and self.default_spike_fn is not None and 'spike_fn' not in kwargs:

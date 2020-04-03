@@ -49,7 +49,6 @@ class SpikingConv3DLayer(torch.nn.Module):
 
     def forward(self, x):
         batch_size = x.shape[0]
-
         
         stride=tuple(self.stride)
         padding=tuple(np.ceil(((self.kernel_size - 1) * self.dilation) / 2).astype(int))
