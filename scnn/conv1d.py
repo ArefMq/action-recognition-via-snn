@@ -1,3 +1,5 @@
+# FIXME: refactor this file
+
 import torch
 import numpy as np
 
@@ -5,8 +7,8 @@ from .default_configs import *
 
 
 class SpikingConv1DLayer(torch.nn.Module):
-    IS_CONV=True
-    IS_SPIKING=True
+    IS_CONV = True
+    IS_SPIKING = True
 
     def __init__(self, input_channels, output_channels, kernel_size, dilation,
                  spike_fn, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD, recurrent=False,

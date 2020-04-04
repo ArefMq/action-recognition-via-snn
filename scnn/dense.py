@@ -37,14 +37,12 @@ class SpikingDenseLayer(torch.nn.Module):
 
     def forward(self, x):
         batch_size = x.shape[0]
-        print('batch size:', batch_size)
+        nb_steps = x.shape[1]
 
         h = torch.einsum("abc,cd->abd", x, self.w)
-        nb_steps = h.shape[1]
 
         # membrane potential 
         mem = torch.zeros((batch_size, self.output_shape), dtype=x.dtype, device=x.device)
-        # output spikes
         spk = torch.zeros((batch_size, self.output_shape), dtype=x.dtype, device=x.device)
 
         # output spikes recording
@@ -56,7 +54,6 @@ class SpikingDenseLayer(torch.nn.Module):
 
         norm = (self.w ** 2).sum(0)
 
-        print('nb steps', nb_steps)
         for t in range(nb_steps):
             # reset term
             if self.lateral_connections:
@@ -72,9 +69,7 @@ class SpikingDenseLayer(torch.nn.Module):
             mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
             mthr = torch.einsum("ab,b->ab", mem, 1. / (norm + self.eps)) - self.b
 
-            print('mthr', mthr)
             spk = self.spike_fn(mthr)
-            print('spk', spk)
 
             spk_rec[:, t, :] = spk
             self.mem_rec_hist[:, t, :] = mem

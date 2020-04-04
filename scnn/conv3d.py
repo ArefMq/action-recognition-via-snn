@@ -44,26 +44,25 @@ class SpikingConv3DLayer(torch.nn.Module):
         self.clamp()
 
         self.spk_rec_hist = None
-
+        self.mem_rec_hist = None
         self.training = True
 
     def forward(self, x):
         batch_size = x.shape[0]
+        nb_steps = x.shape[2]
         
-        stride=tuple(self.stride)
-        padding=tuple(np.ceil(((self.kernel_size - 1) * self.dilation) / 2).astype(int))
+        stride = tuple(self.stride)
+        padding = tuple(np.ceil(((self.kernel_size - 1) * self.dilation) / 2).astype(int))
         conv_x = torch.nn.functional.conv3d(x, self.w, padding=padding,
                                             dilation=tuple(self.dilation),
                                             stride=stride)
-        
         conv_x = conv_x[:, :, :, :self.output_shape[0], :self.output_shape[1]]
-        nb_steps = conv_x.shape[2]
 
         mem = torch.zeros((batch_size, self.out_channels, *self.output_shape), dtype=x.dtype, device=x.device)
         spk = torch.zeros((batch_size, self.out_channels, *self.output_shape), dtype=x.dtype, device=x.device)
 
-        spk_rec = torch.zeros((batch_size, self.out_channels, nb_steps, *self.output_shape), dtype=x.dtype,
-                              device=x.device)
+        spk_rec = torch.zeros((batch_size, self.out_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
+        mem_rec = torch.zeros((batch_size, self.out_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
 
         if self.lateral_connections:
             d = torch.einsum("abcde, fbcde -> af", self.w, self.w)
@@ -87,8 +86,10 @@ class SpikingConv3DLayer(torch.nn.Module):
             spk = self.spike_fn(mthr)
 
             spk_rec[:, :, t, :, :] = spk
+            mem_rec[:, :, t, :, :] = mem
 
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
+        self.mem_rec_hist = mem_rec.detach().cpu().numpy()
 
         loss = 0.5 * (spk_rec ** 2).mean()
 
