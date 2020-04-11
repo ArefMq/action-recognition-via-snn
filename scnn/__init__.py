@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 from .conv1d import SpikingConv1DLayer
 from .conv2d import SpikingConv2DLayer
@@ -10,12 +11,25 @@ from .heaviside import SurrogateHeaviside
 
 
 class SNN(torch.nn.Module):
-    def __init__(self, spike_fn=None):
+    def __init__(self, spike_fn=None, device=None, dtype=None, time_expector=None, notifier=None):
         super(SNN, self).__init__()
         self.layers = []
         self.default_spike_fn = spike_fn if spike_fn is not None else SurrogateHeaviside.apply
         self.last_layer_shape = None
         self.last_layer_is_conv = None
+        self.time_expector = time_expector
+        self.notifier = notifier
+        self.dtype = torch.float if dtype is None else dtype
+        if device is None:
+            self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        else:
+            self.device = device
+
+    def get_trainable_parameters(self):
+        res = []
+        for l in self.layers:
+            res.extend(l.get_trainable_parameters())
+        return res
 
     def add_conv1d(self, **kwargs):
         self.add_layer(SpikingConv1DLayer, **kwargs)
@@ -61,23 +75,28 @@ class SNN(torch.nn.Module):
                 else:
                     kwargs['input_shape'] = llsh['shape']
 
-        if layer.IS_CONV:
-            self.last_layer_shape = {'channels': kwargs['output_channels'], 'shape': kwargs['output_shape']}
+        new_layer = layer(**kwargs)
+        if new_layer.IS_CONV:
+            self.last_layer_shape = {'channels': new_layer.output_channels, 'shape': new_layer.output_shape}
         else:
-            self.last_layer_shape = {'shape': kwargs['output_shape']}
+            self.last_layer_shape = {'shape': new_layer.output_shape}
 
-        self.layers.append(layer(**kwargs))
+        self.layers.append(new_layer)
         self.last_layer_is_conv = layer.IS_CONV
 
     def compile(self):
         self.layers = torch.nn.ModuleList(self.layers)
 
     def forward(self, x):
-        loss_seq = []
+        shp = x.shape
+        if self.layers[0].IS_CONV:
+            x = x.view(shp[0], 1, shp[1], shp[2], shp[3])
+        else:
+            x = x.view(shp[0], shp[1], shp[2] * shp[3])
+
         for l in self.layers:
-            x, loss = l(x)
-            loss_seq.append(loss)
-        return x, loss_seq
+            x = l(x)
+        return x
 
     def clamp(self):
         for l in self.layers:
@@ -86,3 +105,93 @@ class SNN(torch.nn.Module):
     def reset_parameters(self):
         for l in self.layers:
             l.reset_parameters()
+
+    def fit(self, data_loader, epochs=5, loss_func=None, optimizer=None, dataset_size=None):
+        # fix params before proceeding
+        if loss_func is None:
+            loss_func = torch.nn.NLLLoss()
+        if dataset_size is None:
+            dataset_size = 0.
+            for _, _ in data_loader('train'):
+                dataset_size += 1.
+                if dataset_size % 64 == 1:
+                    print('\rpre-processing dataset: %d' % dataset_size, end='')
+            print('\rpre-processing dataset: %d' % dataset_size)
+        if optimizer is None:
+            optimizer = torch.optim.SGD(self.get_trainable_parameters(), lr=0.1, momentum=0.9)
+
+        # train code
+        for epoch in range(epochs):
+            if self.time_expector is not None:
+                self.time_expector.tick(epochs - epoch)
+
+            # train
+            dataset_counter = 0
+            self.train()
+            losses = []
+            nums = []
+            for x_batch, y_batch in data_loader('train'):
+                dataset_counter += 1
+                self.print_progress('Epoch: %d' % epoch, dataset_counter / dataset_size, width=60)
+
+                x_batch = torch.from_numpy(x_batch).to(self.device, self.dtype)  # FIXME
+                y_batch = torch.from_numpy(y_batch.astype(np.long)).to(self.device)  # FIXME
+                l, n = self.batch_step(loss_func, x_batch, y_batch, optimizer)
+                losses.append(l)
+                nums.append(n)
+            train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
+
+            # evaluate
+            self.eval()
+            with torch.no_grad():
+                losses = []
+                nums = []
+                for x_batch, y_batch in data_loader('test'):
+                    x_batch = torch.from_numpy(x_batch).to(self.device, self.dtype)  # FIXME
+                    y_batch = torch.from_numpy(y_batch.astype(np.long)).to(self.device)  # FIXME
+                    l, n = self.batch_step(loss_func, x_batch, y_batch)
+                    losses.append(l)
+                    nums.append(n)
+            val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
+
+            # finishing up
+            print("  | loss=%.3f val_loss=%.3f" % (train_loss, val_loss))
+
+            train_accuracy = self.compute_classification_accuracy(data_loader('acc_train'))
+            valid_accuracy = self.compute_classification_accuracy(data_loader('acc_test'))
+            print('train_accuracy=%.2f%%  |  valid_accuracy=%.2f%%' % (train_accuracy * 100., valid_accuracy * 100.))
+
+            if self.time_expector is not None:
+                self.time_expector.tock()
+
+    def batch_step(self, loss_func, xb, yb, opt=None):
+        log_softmax_fn = torch.nn.LogSoftmax(dim=1)  # TODO: investigate this
+
+        y_pred = self.forward(xb)
+        log_y_pred = log_softmax_fn(y_pred)
+        loss = loss_func(log_y_pred, yb)
+
+        if opt is not None:
+            loss.backward()
+            torch.nn.utils.clip_grad_value_(self.parameters(), 5)  # TODO: investigate this
+            opt.step()
+            self.clamp()  # TODO: investigate this
+            opt.zero_grad()
+
+        return loss.item(), len(xb)
+
+    def compute_classification_accuracy(self, data_dl):
+        accs = []
+        with torch.no_grad():
+            for x_batch, y_batch in data_dl:
+                x_batch = torch.from_numpy(x_batch).to(self.device, self.dtype)
+                y_batch = torch.from_numpy(y_batch.astype(np.long))
+                output = self.forward(x_batch)
+                _, am = torch.max(output, 1)  # argmax over output units
+                tmp = np.mean((y_batch == am).detach().numpy())  # compare to labels
+                accs.append(tmp)
+        return np.mean(accs)
+
+    @staticmethod
+    def print_progress(msg, value, width=80, a='=', b='>', c='.'):
+        print('\r%s [%s%s%s] %d%%' % (msg, a*int(value*width), b, c*int((1.-value)*width), value*100), end='')

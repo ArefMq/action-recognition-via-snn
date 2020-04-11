@@ -9,6 +9,7 @@ from .default_configs import *
 class SpikingConv1DLayer(torch.nn.Module):
     IS_CONV = True
     IS_SPIKING = True
+    HAS_PARAM = True
 
     def __init__(self, input_channels, output_channels, kernel_size, dilation,
                  spike_fn, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD, recurrent=False,
@@ -43,8 +44,18 @@ class SpikingConv1DLayer(torch.nn.Module):
         self.clamp()
 
         self.spk_rec_hist = None
-
         self.training = True
+
+    def get_trainable_parameters(self):
+        res = [
+            {'params': self.w},  #, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY}
+            {'params': self.b},
+            {'params': self.beta},
+        ]
+
+        if self.recurrent:
+            res.append({'params': self.v})
+        return res
 
     def forward(self, x):
         batch_size = x.shape[0]
@@ -100,7 +111,7 @@ class SpikingConv1DLayer(torch.nn.Module):
         else:
             output = spk_rec
 
-        return output, loss
+        return output#, loss
 
     def reset_parameters(self):
         torch.nn.init.normal_(self.w, mean=self.w_init_mean,

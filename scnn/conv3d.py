@@ -7,6 +7,7 @@ from .default_configs import *
 class SpikingConv3DLayer(torch.nn.Module):
     IS_CONV = True
     IS_SPIKING = True
+    HAS_PARAM = True
 
     def __init__(self, input_shape, output_shape,
                  input_channels, output_channels, kernel_size, dilation,
@@ -19,8 +20,8 @@ class SpikingConv3DLayer(torch.nn.Module):
         self.kernel_size = np.array(kernel_size)
         self.dilation = np.array(dilation)
         self.stride = np.array(stride)
-        self.in_channels = input_channels
-        self.out_channels = output_channels
+        self.input_channels = input_channels
+        self.output_channels = output_channels
 
         self.input_shape = input_shape
         self.output_shape = output_shape
@@ -47,6 +48,17 @@ class SpikingConv3DLayer(torch.nn.Module):
         self.mem_rec_hist = None
         self.training = True
 
+    def get_trainable_parameters(self):
+        res = [
+            {'params': self.w},  #, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY}
+            {'params': self.b},
+            {'params': self.beta},
+        ]
+
+        if self.recurrent:
+            res.append({'params': self.v})
+        return res
+
     def forward(self, x):
         batch_size = x.shape[0]
         nb_steps = x.shape[2]
@@ -58,11 +70,11 @@ class SpikingConv3DLayer(torch.nn.Module):
                                             stride=stride)
         conv_x = conv_x[:, :, :, :self.output_shape[0], :self.output_shape[1]]
 
-        mem = torch.zeros((batch_size, self.out_channels, *self.output_shape), dtype=x.dtype, device=x.device)
-        spk = torch.zeros((batch_size, self.out_channels, *self.output_shape), dtype=x.dtype, device=x.device)
+        mem = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x.dtype, device=x.device)
+        spk = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x.dtype, device=x.device)
 
-        spk_rec = torch.zeros((batch_size, self.out_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
-        mem_rec = torch.zeros((batch_size, self.out_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
+        spk_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
+        mem_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
 
         if self.lateral_connections:
             d = torch.einsum("abcde, fbcde -> af", self.w, self.w)
@@ -95,18 +107,18 @@ class SpikingConv3DLayer(torch.nn.Module):
 
         if self.flatten_output:
             output = torch.transpose(spk_rec, 1, 2).contiguous()
-            output = output.view(batch_size, nb_steps, self.out_channels * np.prod(self.output_shape))
+            output = output.view(batch_size, nb_steps, self.output_channels * np.prod(self.output_shape))
         else:
             output = spk_rec
 
-        return output, loss
+        return output#, loss
 
     def reset_parameters(self):
         torch.nn.init.normal_(self.w, mean=self.w_init_mean,
-                              std=self.w_init_std * np.sqrt(1. / (self.in_channels * np.prod(self.kernel_size))))
+                              std=self.w_init_std * np.sqrt(1. / (self.input_channels * np.prod(self.kernel_size))))
         if self.recurrent:
             torch.nn.init.normal_(self.v, mean=self.w_init_mean,
-                                  std=self.w_init_std * np.sqrt(1. / self.out_channels))
+                                  std=self.w_init_std * np.sqrt(1. / self.output_channels))
         torch.nn.init.normal_(self.beta, mean=0.7, std=0.01)
         torch.nn.init.normal_(self.b, mean=1., std=0.01)
 

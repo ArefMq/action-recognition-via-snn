@@ -7,6 +7,7 @@ from .default_configs import *
 class SpikingDenseLayer(torch.nn.Module):
     IS_CONV = False
     IS_SPIKING = True
+    HAS_PARAM = True
 
     def __init__(self, input_shape, output_shape, spike_fn, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD,
                  recurrent=False, lateral_connections=True, eps=EPSILON):
@@ -34,6 +35,17 @@ class SpikingDenseLayer(torch.nn.Module):
         self.spk_rec_hist = None
         self.mem_rec_hist = None
         self.training = True
+
+    def get_trainable_parameters(self):
+        res = [
+            {'params': self.w},  #, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY}
+            {'params': self.b},
+            {'params': self.beta},
+        ]
+
+        if self.recurrent:
+            res.append({'params': self.v})
+        return res
 
     def forward(self, x):
         batch_size = x.shape[0]
@@ -78,7 +90,7 @@ class SpikingDenseLayer(torch.nn.Module):
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
         self.mem_rec_hist = self.mem_rec_hist.detach().cpu().numpy()
         loss = 0.5 * (spk_rec ** 2).mean()
-        return spk_rec, loss
+        return spk_rec#, loss
 
     def reset_parameters(self):
         torch.nn.init.normal_(self.w, mean=self.w_init_mean, std=self.w_init_std * np.sqrt(1. / self.input_shape))
