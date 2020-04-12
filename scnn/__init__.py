@@ -10,7 +10,6 @@ from .readout import ReadoutLayer
 from .heaviside import SurrogateHeaviside
 
 
-
 class SNN(torch.nn.Module):
     def __init__(self, spike_fn=None, device=None, dtype=None, time_expector=None, notifier=None):
         super(SNN, self).__init__()
@@ -98,7 +97,6 @@ class SNN(torch.nn.Module):
         else:
             x = x.view(shp[0], shp[1], shp[2] * shp[3])
         x = x.to(self.device, self.dtype)
-
         return self.forward(x)
 
     def forward(self, x):
@@ -169,7 +167,7 @@ class SNN(torch.nn.Module):
 
     def batch_step(self, loss_func, xb, yb, opt=None):
         log_softmax_fn = torch.nn.LogSoftmax(dim=1)  # TODO: investigate this
-        y_batch = torch.from_numpy(yb.astype(np.long)).to(self.device)
+        yb = torch.from_numpy(yb.astype(np.long)).to(self.device)
 
         y_pred = self.predict(xb)
         log_y_pred = log_softmax_fn(y_pred)
