@@ -196,4 +196,3 @@ class SNN(torch.nn.Module):
     @staticmethod
     def print_progress(msg, value, width=80, a='=', b='>', c='.'):
         print('\r%s [%s%s%s] %d%%' % (msg, a*int(value*width), b, c*int((1.-value)*width), value*100), end='')
-

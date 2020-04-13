@@ -3,8 +3,7 @@
 import numpy as np
 import torch
 
-from scnn import SNN, SpikingDenseLayer, SpikingConv2DLayer, SpikingConv3DLayer
-from scnn.heaviside import SurrogateHeaviside
+from scnn import SNN
 from scnn.optim import RAdam
 
 from data.data_augmentor import data_augment, batchify
@@ -13,14 +12,14 @@ from data.data_augmentor import data_augment, batchify
 batch_size = 16
 nb_epochs = 6
 
+
 # Check whether a GPU is available
 if torch.cuda.is_available():
     print('using cuda...')
     device = torch.device("cuda")     
 else:
     print('using cpu...')
-    device = torch.device("cpu")
-    
+    device = torch.device("cpu")    
 dtype = torch.float
 
 
@@ -64,7 +63,8 @@ print('\rpre-processing dataset: %d' % dataset_size)
 
 
 
-network = SNN(device=device, dtype=dtype).to(device, dtype)
+
+network = SNN(device=device, dtype=dtype)
 
 
 tau_mem = 10e-3
@@ -85,14 +85,14 @@ weight_scale = 7*(1.0 - beta)
 network.add_conv3d(input_shape=(64,64),
                    output_shape=(64,64),
                    input_channels=1,
-                   output_channels=32,
-                   kernel_size=(1,3,3),
+                   output_channels=128,
+                   kernel_size=(1,5,5),
                    dilation=(1,1,1),
                    lateral_connections=False,
 )
 
 # network.add_layer(SpikingPool2DLayer, kernel_size=(2,2), output_channels=32)
-network.add_pool2d(kernel_size=(2,2), output_channels=32)
+network.add_pool2d(kernel_size=(4,4), output_channels=128)
 
 
 # network.add_dense(
@@ -117,21 +117,18 @@ network.add_readout(output_shape=12,
 )
 
 network.compile()
+network = network.to(network.device, network.dtype) # FIXME: this is a bug, fix it!
 
 
-
-lr = 1e-3
-weight_decay = 1e-5
-reg_loss_coef = 0.1
 
 # opt = RAdam(network.get_trainable_parameters())
-opt = torch.optim.SGD(network.get_trainable_parameters(), lr=lr, momentum=0.9)
-network.fit(load_data, optimizer=opt, dataset_size=dataset_size)
+opt = torch.optim.SGD(network.get_trainable_parameters(), lr=1e-3, momentum=0.9)
+network.fit(load_data, epochs=nb_epochs, optimizer=opt, dataset_size=dataset_size)
 
+print('\n----------------------------------------')
 train_accuracy = network.compute_classification_accuracy(load_data('train'))
-print("Train accuracy=%.3f"%(train_accuracy))
+print("Final Train Accuracy=%.2f%%"%(train_accuracy * 100.))
 test_accuracy = network.compute_classification_accuracy(load_data('test'))
-print("Test accuracy=%.3f"%(test_accuracy))
-
+print("Final Test Accuracy=%.2f%%"%(test_accuracy * 100.))
 
 
