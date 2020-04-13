@@ -187,9 +187,9 @@ class SNN(torch.nn.Module):
         with torch.no_grad():
             for x_batch, y_batch in data_dl:
                 output = self.predict(x_batch)
-                y_batch = torch.from_numpy(y_batch.astype(np.long))
+                y_batch = torch.from_numpy(y_batch.astype(np.long)).to(self.device)
                 _, am = torch.max(output, 1)  # argmax over output units
-                tmp = np.mean((y_batch == am).detach().numpy())  # compare to labels
+                tmp = np.mean((y_batch == am).detach().cpu().numpy())  # compare to labels
                 accs.append(tmp)
         return np.mean(accs)
 

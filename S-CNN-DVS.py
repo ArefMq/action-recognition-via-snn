@@ -1,50 +1,17 @@
 #!/usr/bin/env python
 # coding: utf-8
-
-# In[1]:
-
-
-# Essential Imports
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
-# from sklearn.model_selection import train_test_split
-
-
-# In[2]:
-
-
-# Local imports
-from utils import plot_spk_rec, plot_mem_rec, generate_random_silence_files
 
 from scnn import SNN, SpikingDenseLayer, SpikingConv2DLayer, SpikingConv3DLayer
 from scnn.heaviside import SurrogateHeaviside
-
 from scnn.optim import RAdam
 
-
-# In[3]:
-
-
-# Tools Import
 from data.data_augmentor import data_augment, batchify
-from tools.time_expector import TimeExpector
-from tools.notify import notify
-te = TimeExpector()
-
-def print_progress(msg, value, width=80, a='=', b='>', c='.'):
-    print('\r%s [%s%s%s] %d%%' % (msg, a*int(value*width), b, c*int((1.-value)*width), value*100), end='')
-
-
-# In[4]:
 
 
 batch_size = 16
-nb_epochs = 2
-
-
-# In[5]:
-
+nb_epochs = 6
 
 # Check whether a GPU is available
 if torch.cuda.is_available():
@@ -55,9 +22,6 @@ else:
     device = torch.device("cpu")
     
 dtype = torch.float
-
-
-# In[6]:
 
 
 # FIXME
@@ -99,26 +63,8 @@ for x_batch, y_batch in load_data('train'):
 print('\rpre-processing dataset: %d' % dataset_size)
 
 
-# In[7]:
 
-
-
-
-# In[8]:
-
-
-def debug_print(val, name, show_data=False, pytorch=True):
-    print('%s' % name, val.shape)
-    if show_data:
-        print(val)
-    if pytorch:
-        print('min=%.2f | mean=%.2f | max=%.2f' % (torch.min(val), torch.mean(val), torch.max(val)))
-    else:
-        print('min=%.2f | mean=%.2f | max=%.2f' % (np.min(val), np.mean(val), np.max(val)))
-    print('\n---------------------------------------------------------------\n')
-
-
-network = SNN().to(device, dtype)
+network = SNN(device=device, dtype=dtype).to(device, dtype)
 
 
 tau_mem = 10e-3
@@ -178,18 +124,14 @@ lr = 1e-3
 weight_decay = 1e-5
 reg_loss_coef = 0.1
 
-train_dl = load_data('train')
-valid_dl = load_data('test')
-
 # opt = RAdam(network.get_trainable_parameters())
 opt = torch.optim.SGD(network.get_trainable_parameters(), lr=lr, momentum=0.9)
 network.fit(load_data, optimizer=opt, dataset_size=dataset_size)
 
-train_accuracy = network.compute_classification_accuracy(train_dl)
+train_accuracy = network.compute_classification_accuracy(load_data('train'))
 print("Train accuracy=%.3f"%(train_accuracy))
-test_accuracy = network.compute_classification_accuracy(valid_dl)
+test_accuracy = network.compute_classification_accuracy(load_data('test'))
 print("Test accuracy=%.3f"%(test_accuracy))
-
 
 
 
