@@ -1,9 +1,16 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+# In[1]:
+
+
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+
+
+# In[2]:
+
 
 from utils import plot_spk_rec, plot_mem_rec, generate_random_silence_files
 from scnn import SNN
@@ -14,8 +21,11 @@ from tools.time_expector import TimeExpector
 time_expector = TimeExpector()
 
 
+# In[3]:
+
+
 batch_size = 16
-nb_epochs = 80
+nb_epochs = 60
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dtype = torch.float
@@ -23,6 +33,9 @@ dtype = torch.float
 test_run = True
 if test_run:
     print('[WARNING] : This is test run.')
+
+
+# In[4]:
 
 
 # FIXME
@@ -37,7 +50,7 @@ else:
     
 def load_data(trail):
     if test_run:
-        trail = 'acc_test'  # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Remove this >>>>>>>>>>>>>>>>
+        trail = 'acc_test' # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Remove this >>>>>>>>>>>>>>>>
     
     if trail.startswith('acc'):
         max_augmentation = 1
@@ -55,7 +68,7 @@ def load_data(trail):
         batch_size=batch_size,
         augmentation=augmentation,
         max_augmentation=max_augmentation,
-        frame=20
+        frame=80
     )
 
 # calculate train dataset size
@@ -67,6 +80,9 @@ for x_batch, y_batch in load_data('train'):
 print('\rpre-processing dataset: %d' % dataset_size)
 
 
+
+from scnn.legacy_dense import LegacyDense
+
 network = SNN(device=device, dtype=dtype)
 network.time_expector = time_expector
 
@@ -77,6 +93,12 @@ time_step = 1e-3
 beta = float(np.exp(-time_step / tau_mem))
 weight_scale = 7*(1.0 - beta)
 
+# network.add_dense( #layer(LegacyDense,
+#     input_shape=4096,
+#     output_shape=128,              
+#     w_init_mean=0.0,
+#     w_init_std=weight_scale
+# )
 
 # network.add_layer(NewSpiker,
 #     input_shape=4096,
@@ -86,17 +108,21 @@ weight_scale = 7*(1.0 - beta)
 #     w_init_std=weight_scale
 # )
 
-network.add_conv3d(input_shape=(64, 64),
-                   output_shape=(64, 64),
-                   input_channels=1,
-                   output_channels=128,
-                   kernel_size=(1, 5, 5),
-                   dilation=(1, 1, 1),
-                   lateral_connections=True,
+network.add_conv3d(
+    input_shape=(64,64),
+    output_shape=(64,64),
+    input_channels=1,
+    output_channels=128,
+    kernel_size=(1,5,5),
+    dilation=(1,1,1),
+    lateral_connections=False,
+    
+    w_init_mean=0.0,
+    w_init_std=weight_scale
 )
 
 # network.add_layer(SpikingPool2DLayer, kernel_size=(2,2), output_channels=32)
-network.add_pool2d(kernel_size=(4, 4), output_channels=128)
+# network.add_pool2d(kernel_size=(4,4), output_channels=128)
 
 
 # network.add_dense(
@@ -117,11 +143,11 @@ network.add_pool2d(kernel_size=(4, 4), output_channels=128)
 # )
 
 network.add_readout(output_shape=12,
-                    time_reduction="max"  # mean or max
+                    time_reduction="max" # mean or max
 )
 
 network.compile()
-network = network.to(network.device, network.dtype)  # FIXME: this is a bug, fix it!
+network = network.to(network.device, network.dtype) # FIXME: this is a bug, fix it!
 
 
 with open('results.log', 'w') as f:
@@ -137,7 +163,6 @@ train_accuracy = network.compute_classification_accuracy(load_data('acc_train'))
 print("Final Train Accuracy=%.2f%%"%(train_accuracy * 100.))
 test_accuracy = network.compute_classification_accuracy(load_data('acc_test'))
 print("Final Test Accuracy=%.2f%%"%(test_accuracy * 100.))
-
 
 
 
