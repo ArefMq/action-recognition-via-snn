@@ -25,7 +25,6 @@ class LegacyDense(torch.nn.Module):
         if recurrent:
             self.v = torch.nn.Parameter(torch.empty((output_shape, output_shape)), requires_grad=True)
 
-        #         self.alpha = torch.nn.Parameter(torch.empty(1), requires_grad=True)
         tau_mem = 10e-3
         tau_syn = 5e-3
         time_step = 1e-3
@@ -33,7 +32,6 @@ class LegacyDense(torch.nn.Module):
         self._alpha = float(np.exp(-time_step / tau_syn))
         self._beta = float(np.exp(-time_step / tau_mem))
 
-        self.beta = torch.nn.Parameter(torch.empty(1), requires_grad=True)
         self.b = torch.nn.Parameter(torch.empty(output_shape), requires_grad=True)
 
         self.reset_parameters()
@@ -41,6 +39,16 @@ class LegacyDense(torch.nn.Module):
         self.spk_rec_hist = None
         self.mem_rec_hist = None
         self.training = True
+
+    def get_trainable_parameters(self):
+        res = [
+            {'params': self.w},  #, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY}
+            {'params': self.b},
+        ]
+
+        if self.recurrent:
+            res.append({'params': self.v})
+        return res
 
     def forward(self, x):
         batch_size = x.shape[0]
@@ -72,8 +80,7 @@ class LegacyDense(torch.nn.Module):
 
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
         self.mem_rec_hist = mem_rec.detach().cpu().numpy()
-        loss = 0.5 * (spk_rec ** 2).mean()
-        return spk_rec, loss
+        return spk_rec
 
     #         for t in range(nb_steps):
     #             # reset term
@@ -105,14 +112,7 @@ class LegacyDense(torch.nn.Module):
 
     def reset_parameters(self):
         torch.nn.init.normal_(self.w, mean=self.w_init_mean, std=self.w_init_std * np.sqrt(1. / self.input_shape))
-        #         if self.recurrent:
-        #             torch.nn.init.normal_(self.v, mean=self.w_init_mean, std=self.w_init_std * np.sqrt(1. / self.output_shape))
-        torch.nn.init.normal_(self.beta, mean=0.7, std=0.01)
-
-    #         torch.nn.init.normal_(self.b, mean=1., std=0.01)
 
     def clamp(self):
         pass
-        self.beta.data.clamp_(0., 1.)
-#         self.b.data.clamp_(min=0.)
 

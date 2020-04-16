@@ -48,6 +48,13 @@ class SpikingConv3DLayer(torch.nn.Module):
         self.mem_rec_hist = None
         self.training = True
 
+        # TODO : check this
+        tau_mem = 10e-3
+        tau_syn = 5e-3
+        time_step = 1e-3
+        self._alpha = float(np.exp(-time_step / tau_syn))
+        self._beta = float(np.exp(-time_step / tau_mem))
+
     def get_trainable_parameters(self):
         res = [
             {'params': self.w},  #, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY}
@@ -71,6 +78,7 @@ class SpikingConv3DLayer(torch.nn.Module):
         conv_x = conv_x[:, :, :, :self.output_shape[0], :self.output_shape[1]]
 
         mem = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x.dtype, device=x.device)
+        syn = torch.zeros((batch_size, self.output_channels, *self.output_shape), device=x.device, dtype=x.dtype)  # FIXME
         spk = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x.dtype, device=x.device)
 
         spk_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
@@ -83,6 +91,10 @@ class SpikingConv3DLayer(torch.nn.Module):
         norm = (self.w ** 2).sum((1, 2, 3, 4))
 
         for t in range(nb_steps):
+            # spike term
+            mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + self.eps)) - b
+            spk = self.spike_fn(mthr)
+
             if self.lateral_connections:
                 rst = torch.einsum("abcd,be ->aecd", spk, d)
             else:
@@ -92,10 +104,15 @@ class SpikingConv3DLayer(torch.nn.Module):
             if self.recurrent:
                 input_ = input_ + torch.einsum("abcd,be->aecd", spk, self.v)
 
-            mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
-            mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + self.eps)) - b
+            # TODO : check to see if this is actually works
+            new_syn = self._alpha * syn + input_
+            new_mem = self._beta * mem + syn - rst
+            mem = new_mem
+            syn = new_syn
+            # mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
 
-            spk = self.spike_fn(mthr)
+            # mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + self.eps)) - b
+            # spk = self.spike_fn(mthr)
 
             spk_rec[:, :, t, :, :] = spk
             mem_rec[:, :, t, :, :] = mem
@@ -103,15 +120,13 @@ class SpikingConv3DLayer(torch.nn.Module):
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
         self.mem_rec_hist = mem_rec.detach().cpu().numpy()
 
-        loss = 0.5 * (spk_rec ** 2).mean()
-
         if self.flatten_output:
             output = torch.transpose(spk_rec, 1, 2).contiguous()
             output = output.view(batch_size, nb_steps, self.output_channels * np.prod(self.output_shape))
         else:
             output = spk_rec
 
-        return output#, loss
+        return output
 
     def reset_parameters(self):
         torch.nn.init.normal_(self.w, mean=self.w_init_mean,

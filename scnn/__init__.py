@@ -1,6 +1,9 @@
 import torch
 import numpy as np
 
+from time import time
+from os import path
+
 from .conv1d import SpikingConv1DLayer
 from .conv2d import SpikingConv2DLayer
 from .conv3d import SpikingConv3DLayer
@@ -119,7 +122,14 @@ class SNN(torch.nn.Module):
         file.write('acc = %f' % acc)
         file.write('val_acc = %f' % val_acc)
 
-    def fit(self, data_loader, epochs=5, loss_func=None, optimizer=None, dataset_size=None, result_file=None):
+    def save_network_summery(self, file):
+        # for l in self.layers:
+        pass
+
+    def fit(self, data_loader, epochs=5, loss_func=None, optimizer=None, dataset_size=None, result_file=None, save_checkpoints=True):
+        if result_file is not None:
+            self.save_network_summery(result_file)
+
         # fix params before proceeding
         if loss_func is None:
             loss_func = torch.nn.NLLLoss()
@@ -172,6 +182,9 @@ class SNN(torch.nn.Module):
             if result_file is not None:
                 self.write_result_log(result_file, train_loss, val_loss, train_accuracy, valid_accuracy)
 
+            if save_checkpoints:
+                self.save_checkpoint()
+
             if self.time_expector is not None:
                 self.time_expector.tock()
 
@@ -206,6 +219,9 @@ class SNN(torch.nn.Module):
     @staticmethod
     def print_progress(msg, value, width=80, a='=', b='>', c='.'):
         print('\r%s [%s%s%s] %d%%' % (msg, a*int(value*width), b, c*int((1.-value)*width), value*100), end='')
+
+    def save_checkpoint(self):
+        self.save(path.join('checkpoints', 'result_checkpoint_%d.net' % time()))
 
     def save(self, file):
         torch.save({
