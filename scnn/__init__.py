@@ -112,7 +112,14 @@ class SNN(torch.nn.Module):
         for l in self.layers:
             l.reset_parameters()
 
-    def fit(self, data_loader, epochs=5, loss_func=None, optimizer=None, dataset_size=None):
+    @staticmethod
+    def write_result_log(file, loss, val_los, acc, val_acc):
+        file.write('loss= % f' % loss)
+        file.write('val_los = %f' % val_los)
+        file.write('acc = %f' % acc)
+        file.write('val_acc = %f' % val_acc)
+
+    def fit(self, data_loader, epochs=5, loss_func=None, optimizer=None, dataset_size=None, result_file=None):
         # fix params before proceeding
         if loss_func is None:
             loss_func = torch.nn.NLLLoss()
@@ -138,7 +145,7 @@ class SNN(torch.nn.Module):
             nums = []
             for x_batch, y_batch in data_loader('train'):
                 dataset_counter += 1
-                self.print_progress('Epoch: %d' % epoch, dataset_counter / dataset_size, width=60)
+                self.print_progress('Epoch: %d' % epoch, dataset_counter / dataset_size, width=80)
                 l, n = self.batch_step(loss_func, x_batch, y_batch, optimizer)
                 losses.append(l)
                 nums.append(n)
@@ -161,6 +168,9 @@ class SNN(torch.nn.Module):
             train_accuracy = self.compute_classification_accuracy(data_loader('acc_train'))
             valid_accuracy = self.compute_classification_accuracy(data_loader('acc_test'))
             print('train_accuracy=%.2f%%  |  valid_accuracy=%.2f%%' % (train_accuracy * 100., valid_accuracy * 100.))
+
+            if result_file is not None:
+                self.write_result_log(result_file, train_loss, val_loss, train_accuracy, valid_accuracy)
 
             if self.time_expector is not None:
                 self.time_expector.tock()
@@ -196,3 +206,12 @@ class SNN(torch.nn.Module):
     @staticmethod
     def print_progress(msg, value, width=80, a='=', b='>', c='.'):
         print('\r%s [%s%s%s] %d%%' % (msg, a*int(value*width), b, c*int((1.-value)*width), value*100), end='')
+
+    def save(self, file):
+        torch.save({
+            'model_state_dict': self.state_dict(),
+        }, file)
+
+    def load(self, file):
+        checkpoint = torch.load(file, map_location=self.device)
+        self.load_state_dict(checkpoint['model_state_dict'])
