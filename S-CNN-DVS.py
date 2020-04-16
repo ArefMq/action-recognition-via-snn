@@ -1,26 +1,28 @@
 #!/usr/bin/env python
 # coding: utf-8
+
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
 
+from utils import plot_spk_rec, plot_mem_rec, generate_random_silence_files
 from scnn import SNN
 from scnn.optim import RAdam
 
 from data.data_augmentor import data_augment, batchify
+from tools.time_expector import TimeExpector
+time_expector = TimeExpector()
 
 
 batch_size = 16
-nb_epochs = 6
+nb_epochs = 80
 
-
-# Check whether a GPU is available
-if torch.cuda.is_available():
-    print('using cuda...')
-    device = torch.device("cuda")     
-else:
-    print('using cpu...')
-    device = torch.device("cpu")    
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dtype = torch.float
+
+test_run = True
+if test_run:
+    print('[WARNING] : This is test run.')
 
 
 # FIXME
@@ -34,6 +36,9 @@ else:
 
     
 def load_data(trail):
+    if test_run:
+        trail = 'acc_test'  # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Remove this >>>>>>>>>>>>>>>>
+    
     if trail.startswith('acc'):
         max_augmentation = 1
         augmentation = False
@@ -62,9 +67,8 @@ for x_batch, y_batch in load_data('train'):
 print('\rpre-processing dataset: %d' % dataset_size)
 
 
-
-
 network = SNN(device=device, dtype=dtype)
+network.time_expector = time_expector
 
 
 tau_mem = 10e-3
@@ -82,17 +86,17 @@ weight_scale = 7*(1.0 - beta)
 #     w_init_std=weight_scale
 # )
 
-network.add_conv3d(input_shape=(64,64),
-                   output_shape=(64,64),
+network.add_conv3d(input_shape=(64, 64),
+                   output_shape=(64, 64),
                    input_channels=1,
                    output_channels=128,
-                   kernel_size=(1,5,5),
-                   dilation=(1,1,1),
-                   lateral_connections=False,
+                   kernel_size=(1, 5, 5),
+                   dilation=(1, 1, 1),
+                   lateral_connections=True,
 )
 
 # network.add_layer(SpikingPool2DLayer, kernel_size=(2,2), output_channels=32)
-network.add_pool2d(kernel_size=(4,4), output_channels=128)
+network.add_pool2d(kernel_size=(4, 4), output_channels=128)
 
 
 # network.add_dense(
@@ -113,22 +117,28 @@ network.add_pool2d(kernel_size=(4,4), output_channels=128)
 # )
 
 network.add_readout(output_shape=12,
-                    time_reduction="max" # mean or max
+                    time_reduction="max"  # mean or max
 )
 
 network.compile()
-network = network.to(network.device, network.dtype) # FIXME: this is a bug, fix it!
+network = network.to(network.device, network.dtype)  # FIXME: this is a bug, fix it!
 
 
+with open('results.log', 'w') as f:
+    # opt = RAdam(network.get_trainable_parameters())
+    opt = torch.optim.SGD(network.get_trainable_parameters(), lr=1e-3, momentum=0.9)
+    network.fit(load_data, epochs=nb_epochs, optimizer=opt, dataset_size=dataset_size, result_file=f)
 
-# opt = RAdam(network.get_trainable_parameters())
-opt = torch.optim.SGD(network.get_trainable_parameters(), lr=1e-3, momentum=0.9)
-network.fit(load_data, epochs=nb_epochs, optimizer=opt, dataset_size=dataset_size)
-
+network.save('save_network.net')
+# network.load('save_network.net')
+    
 print('\n----------------------------------------')
-train_accuracy = network.compute_classification_accuracy(load_data('train'))
+train_accuracy = network.compute_classification_accuracy(load_data('acc_train'))
 print("Final Train Accuracy=%.2f%%"%(train_accuracy * 100.))
-test_accuracy = network.compute_classification_accuracy(load_data('test'))
+test_accuracy = network.compute_classification_accuracy(load_data('acc_test'))
 print("Final Test Accuracy=%.2f%%"%(test_accuracy * 100.))
+
+
+
 
 
