@@ -155,7 +155,7 @@ class SNN(torch.nn.Module):
             nums = []
             for x_batch, y_batch in data_loader('train'):
                 dataset_counter += 1
-                self.print_progress('Epoch: %d' % epoch, dataset_counter / dataset_size, width=80)
+                self.print_progress('Epoch: %d' % epoch, dataset_counter / dataset_size[0], a='-', c='.')
                 l, n = self.batch_step(loss_func, x_batch, y_batch, optimizer)
                 losses.append(l)
                 nums.append(n)
@@ -166,7 +166,10 @@ class SNN(torch.nn.Module):
             with torch.no_grad():
                 losses = []
                 nums = []
+                dataset_counter = 0
                 for x_batch, y_batch in data_loader('test'):
+                    dataset_counter += 1
+                    self.print_progress('Epoch: %d' % epoch, dataset_counter / dataset_size[1], a='=', c='-')
                     l, n = self.batch_step(loss_func, x_batch, y_batch)
                     losses.append(l)
                     nums.append(n)
@@ -217,8 +220,8 @@ class SNN(torch.nn.Module):
         return np.mean(accs)
 
     @staticmethod
-    def print_progress(msg, value, width=80, a='=', b='>', c='.'):
-        print('\r%s [%s%s%s] %d%%' % (msg, a*int(value*width), b, c*int((1.-value)*width), value*100), end='')
+    def print_progress(msg, value, width=60, a='=', b='>', c='.'):
+        print('\r%s [%s%s%s] %d%%    ' % (msg, a*int((value-0.001)*width), b, c*int((1.-value)*width), value*100), end='')
 
     def save_checkpoint(self):
         self.save(path.join('checkpoints', 'result_checkpoint_%d.net' % time()))

@@ -92,8 +92,8 @@ class SpikingConv3DLayer(torch.nn.Module):
 
         for t in range(nb_steps):
             # spike term
-            mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + self.eps)) - b
-            spk = self.spike_fn(mthr)
+            # mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + self.eps)) - b
+            # spk = self.spike_fn(mthr)
 
             if self.lateral_connections:
                 rst = torch.einsum("abcd,be ->aecd", spk, d)
@@ -111,8 +111,8 @@ class SpikingConv3DLayer(torch.nn.Module):
             syn = new_syn
             # mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
 
-            # mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + self.eps)) - b
-            # spk = self.spike_fn(mthr)
+            mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + self.eps)) - b
+            spk = self.spike_fn(mthr)
 
             spk_rec[:, :, t, :, :] = spk
             mem_rec[:, :, t, :, :] = mem
