@@ -149,6 +149,7 @@ class SNN(torch.nn.Module):
             optimizer = torch.optim.SGD(self.get_trainable_parameters(lr), lr=lr, momentum=0.9)
 
         # train code
+        res_metrics = {'train_loss_mean': [], 'test_loss_mean': [], 'train_loss': [], 'test_loss': [], 'train_acc': [], 'test_acc': []}
         for epoch in range(epochs):
             if self.time_expector is not None:
                 self.time_expector.tick(epochs - epoch)
@@ -164,6 +165,7 @@ class SNN(torch.nn.Module):
                 l, n = self.batch_step(loss_func, x_batch, y_batch, optimizer)
                 losses.append(l)
                 nums.append(n)
+                res_metrics['train_loss'].append(l)
             train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
             # evaluate
@@ -178,13 +180,18 @@ class SNN(torch.nn.Module):
                     l, n = self.batch_step(loss_func, x_batch, y_batch)
                     losses.append(l)
                     nums.append(n)
+                    res_metrics['test_loss'].append(l)
             val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
             # finishing up
+            res_metrics['train_loss_mean'].append(train_loss)
+            res_metrics['test_loss_mean'].append(val_loss)
             print("  | loss=%.3f val_loss=%.3f" % (train_loss, val_loss))
 
             train_accuracy = self.compute_classification_accuracy(data_loader('acc_train'), False)
             valid_accuracy = self.compute_classification_accuracy(data_loader('acc_test'), False)
+            res_metrics['train_acc'].append(train_accuracy)
+            res_metrics['test_acc'].append(valid_accuracy)
             print('train_accuracy=%.2f%%  |  valid_accuracy=%.2f%%' % (train_accuracy * 100., valid_accuracy * 100.))
 
             if result_file is not None:
@@ -195,6 +202,7 @@ class SNN(torch.nn.Module):
 
             if self.time_expector is not None:
                 self.time_expector.tock()
+        return res_metrics
 
     def batch_step(self, loss_func, xb, yb, opt=None):
         log_softmax_fn = torch.nn.LogSoftmax(dim=1)  # TODO: investigate this

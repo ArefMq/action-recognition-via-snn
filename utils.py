@@ -202,3 +202,16 @@ def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test):
     plt.xlabel("Truth")
     plt.ylabel("Prediction")
     plt.show()
+
+def plot_metrics(res):
+    plt.plot(res['train_loss'], 'b', label='train')
+    plt.plot(res['test_loss'], 'r--', label='test')
+    plt.title('Loss Value')
+    plt.legend()
+    plt.show()
+
+    plt.plot(res['train_acc'], 'b', label='train')
+    plt.plot(res['test_acc'], 'r--', label='test')
+    plt.title('Accuracy Metrics')
+    plt.legend()
+    plt.show()
