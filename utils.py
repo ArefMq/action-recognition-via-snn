@@ -1,7 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-import scipy.io.wavfile as wav
+import seaborn as sns
+# import scipy.io.wavfile as wav
 
 #
 # def txt2list(filename):
@@ -180,4 +181,24 @@ def _plot_spikes_conv(layer, batch_id=0):
             ax.imshow(spk_rec_hist[t, n, :, :], cmap=plt.cm.gray_r, origin="lower", aspect='auto')
             plt.title('t(%d) - n(%d)' % (t, n))
             counter += 1
+    plt.show()
+
+
+def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test):
+    print('\n----------------------------------------')
+    train_accuracy, heatmap_train = network.compute_classification_accuracy(data_dl_train)
+    print("Final Train Accuracy=%.2f%%" % (train_accuracy * 100.))
+    test_accuracy, heatmap_test = network.compute_classification_accuracy(data_dl_test)
+    print("Final Test Accuracy=%.2f%%" % (test_accuracy * 100.))
+
+    sns.heatmap(heatmap_train)
+    plt.title('Train Result Heatmap (%.1f%%)' % (np.mean(np.array(train_accuracy))*100))
+    plt.xlabel("Truth")
+    plt.ylabel("Prediction")
+    plt.show()
+
+    sns.heatmap(heatmap_test)
+    plt.title('Test Result Heatmap (%.1f%%)' % (np.mean(np.array(test_accuracy))*100))
+    plt.xlabel("Truth")
+    plt.ylabel("Prediction")
     plt.show()

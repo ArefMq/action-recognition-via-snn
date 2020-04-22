@@ -26,7 +26,7 @@ class SpikingConv2DLayer(torch.nn.Module):
         self.out_channels = output_channels
 
         self.input_shape = input_shape
-        self.output_shape = output_shape
+        self.output_shape = output_shape if output_shape is not None else input_shape
         self.spike_fn = spike_fn
         self.recurrent = recurrent
         self.lateral_connections = lateral_connections

@@ -9,9 +9,9 @@ class SpikingConv3DLayer(torch.nn.Module):
     IS_SPIKING = True
     HAS_PARAM = True
 
-    def __init__(self, input_shape, output_shape,
-                 input_channels, output_channels, kernel_size, dilation,
-                 spike_fn, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD, recurrent=False,
+    def __init__(self, input_shape, input_channels, output_shape=None,
+                 output_channels=1, kernel_size=3, dilation=1,
+                 spike_fn=None, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD, recurrent=False,
                  lateral_connections=True,
                  eps=EPSILON, stride=(1, 1, 1), flatten_output=False):
 
@@ -21,10 +21,10 @@ class SpikingConv3DLayer(torch.nn.Module):
         self.dilation = np.array(dilation)
         self.stride = np.array(stride)
         self.input_channels = input_channels
-        self.output_channels = output_channels
-
         self.input_shape = input_shape
-        self.output_shape = output_shape
+
+        self.output_channels = output_channels
+        self.output_shape = output_shape if output_shape is not None else input_shape
         self.spike_fn = spike_fn
         self.recurrent = recurrent
         self.lateral_connections = lateral_connections

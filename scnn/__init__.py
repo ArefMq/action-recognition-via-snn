@@ -11,15 +11,14 @@ from .pool2d import SpikingPool2DLayer
 from .dense import SpikingDenseLayer
 from .readout import ReadoutLayer
 from .heaviside import SurrogateHeaviside
+from .readin import ReadInLayer
 
 
 class SNN(torch.nn.Module):
-    def __init__(self, spike_fn=None, device=None, dtype=None, time_expector=None, notifier=None):
+    def __init__(self, spike_fn=None, device=None, dtype=None, time_expector=None, notifier=None, input_layer=None):
         super(SNN, self).__init__()
-        self.layers = []
+        self.layers = [] if input_layer is None else [input_layer]
         self.default_spike_fn = spike_fn if spike_fn is not None else SurrogateHeaviside.apply
-        self.last_layer_shape = None
-        self.last_layer_is_conv = None
         self.time_expector = time_expector
         self.notifier = notifier
         self.dtype = torch.float if dtype is None else dtype
@@ -54,39 +53,49 @@ class SNN(torch.nn.Module):
         self.add_layer(ReadoutLayer, **kwargs)
 
     def add_layer(self, layer, **kwargs):
+        if not self.layers:
+            input_shape = kwargs.pop('input_shape')
+            self.layers.append(ReadInLayer(input_shape))
+
         if layer.IS_SPIKING and self.default_spike_fn is not None and 'spike_fn' not in kwargs:
             kwargs['spike_fn'] = self.default_spike_fn
 
-        if not layer.IS_CONV and self.last_layer_is_conv:
+        if not layer.IS_CONV and self.layers[-1].IS_CONV:
             self.layers[-1].flatten_output = True
 
         # calculating this layer inputs based on last layer
-        if self.last_layer_shape is not None:
-            llsh = self.last_layer_shape
-            if layer.IS_CONV and 'input_channels' not in kwargs and 'input_shape' not in kwargs:
-                if self.last_layer_is_conv:
-                    kwargs['input_channels'] = llsh['channels']
-                    kwargs['input_shape'] = llsh['shape']
-                else:
-                    raise NotImplementedError()  # FIXME : handle if last layer was not conv
-            elif not layer.IS_CONV and 'input_shape' not in kwargs:
-                if self.last_layer_is_conv:
-                    input_shape = 1
-                    for i in range(len(llsh['shape'])):
-                        input_shape *= llsh['shape'][i]
-                    input_shape *= llsh['channels']
-                    kwargs['input_shape'] = input_shape
-                else:
-                    kwargs['input_shape'] = llsh['shape']
-
-        new_layer = layer(**kwargs)
-        if new_layer.IS_CONV:
-            self.last_layer_shape = {'channels': new_layer.output_channels, 'shape': new_layer.output_shape}
+        if layer.IS_CONV:
+            kwargs = self.modify_param_for_conv(kwargs)
         else:
-            self.last_layer_shape = {'shape': new_layer.output_shape}
+            kwargs = self.modify_param_for_flat(kwargs)
 
-        self.layers.append(new_layer)
-        self.last_layer_is_conv = layer.IS_CONV
+        self.layers.append(layer(**kwargs))
+
+    def modify_param_for_conv(self, param):
+        if 'input_shape' in param and 'input_channels' in param:
+            return param
+
+        if self.layers[-1].IS_CONV:
+            param['input_shape'] = self.layers[-1].output_shape
+            param['input_channels'] = self.layers[-1].output_channels
+        else:
+            raise NotImplementedError()  # FIXME : handle if last layer was not conv
+        return param
+
+    def modify_param_for_flat(self, param):
+        if 'input_shape' in param:
+            return param
+
+        if self.layers[-1].IS_CONV:
+            input_shape = 1
+            last_out_shape = self.layers[-1].output_shape
+            for sh in last_out_shape:
+                input_shape *= sh
+            input_shape *= self.layers[-1].output_channels
+        else:
+            input_shape = self.layers[-1].output_shape
+        param['input_shape'] = input_shape
+        return param
 
     def compile(self):
         self.layers = torch.nn.ModuleList(self.layers)
@@ -94,11 +103,11 @@ class SNN(torch.nn.Module):
     def predict(self, x):
         if isinstance(x, np.ndarray):
             x = torch.from_numpy(x)
-        shp = x.shape
-        if self.layers[0].IS_CONV:
-            x = x.view(shp[0], 1, shp[1], shp[2], shp[3])
-        else:
-            x = x.view(shp[0], shp[1], shp[2] * shp[3])
+        # shp = x.shape
+        # if self.layers[0].IS_CONV:
+        #     x = x.view(shp[0], 1, shp[1], shp[2], shp[3])
+        # else:
+        #     x = x.view(shp[0], shp[1], shp[2] * shp[3])
         x = x.to(self.device, self.dtype)
         return self.forward(x)
 
@@ -178,8 +187,8 @@ class SNN(torch.nn.Module):
             # finishing up
             print("  | loss=%.3f val_loss=%.3f" % (train_loss, val_loss))
 
-            train_accuracy = self.compute_classification_accuracy(data_loader('acc_train'))
-            valid_accuracy = self.compute_classification_accuracy(data_loader('acc_test'))
+            train_accuracy = self.compute_classification_accuracy(data_loader('acc_train'), False)
+            valid_accuracy = self.compute_classification_accuracy(data_loader('acc_test'), False)
             print('train_accuracy=%.2f%%  |  valid_accuracy=%.2f%%' % (train_accuracy * 100., valid_accuracy * 100.))
 
             if result_file is not None:
@@ -208,8 +217,10 @@ class SNN(torch.nn.Module):
 
         return loss.item(), len(xb)
 
-    def compute_classification_accuracy(self, data_dl):
+    def compute_classification_accuracy(self, data_dl, calc_map=True):
         accs = []
+        nb_outputs = self.layers[-1].output_shape
+        heatmap = np.zeros((nb_outputs, nb_outputs))
         with torch.no_grad():
             for x_batch, y_batch in data_dl:
                 output = self.predict(x_batch)
@@ -217,7 +228,14 @@ class SNN(torch.nn.Module):
                 _, am = torch.max(output, 1)  # argmax over output units
                 tmp = np.mean((y_batch == am).detach().cpu().numpy())  # compare to labels
                 accs.append(tmp)
-        return np.mean(accs)
+
+                if calc_map:
+                    for i in range(y_batch.shape[0]):
+                        heatmap[y_batch[i], am[i]] += 1
+        if calc_map:
+            return np.mean(accs), heatmap
+        else:
+            return np.mean(accs)
 
     @staticmethod
     def print_progress(msg, value, width=60, a='=', b='>', c='.'):
