@@ -43,9 +43,9 @@ class SpikingDenseLayer(torch.nn.Module):
         self._alpha = float(np.exp(-time_step / tau_syn))
         self._beta = float(np.exp(-time_step / tau_mem))
 
-    def get_trainable_parameters(self):
+    def get_trainable_parameters(self, lr):
         res = [
-            {'params': self.w},  #, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY}
+            {'params': self.w, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY},
             {'params': self.b},
             {'params': self.beta},
         ]

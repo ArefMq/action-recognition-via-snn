@@ -40,9 +40,9 @@ class LegacyDense(torch.nn.Module):
         self.mem_rec_hist = None
         self.training = True
 
-    def get_trainable_parameters(self):
+    def get_trainable_parameters(self, lr):
         res = [
-            {'params': self.w},  #, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY}
+            {'params': self.w, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY},
             {'params': self.b},
         ]
 

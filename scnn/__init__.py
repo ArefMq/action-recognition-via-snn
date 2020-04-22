@@ -28,10 +28,10 @@ class SNN(torch.nn.Module):
             self.device = device
         self.to(device, dtype)
 
-    def get_trainable_parameters(self):
+    def get_trainable_parameters(self, lr):
         res = []
         for l in self.layers:
-            res.extend(l.get_trainable_parameters())
+            res.extend(l.get_trainable_parameters(lr))
         return res
 
     def add_conv1d(self, **kwargs):
@@ -103,11 +103,6 @@ class SNN(torch.nn.Module):
     def predict(self, x):
         if isinstance(x, np.ndarray):
             x = torch.from_numpy(x)
-        # shp = x.shape
-        # if self.layers[0].IS_CONV:
-        #     x = x.view(shp[0], 1, shp[1], shp[2], shp[3])
-        # else:
-        #     x = x.view(shp[0], shp[1], shp[2] * shp[3])
         x = x.to(self.device, self.dtype)
         return self.forward(x)
 
@@ -150,7 +145,8 @@ class SNN(torch.nn.Module):
                     print('\rpre-processing dataset: %d' % dataset_size, end='')
             print('\rpre-processing dataset: %d' % dataset_size)
         if optimizer is None:
-            optimizer = torch.optim.SGD(self.get_trainable_parameters(), lr=0.1, momentum=0.9)
+            lr = 0.1
+            optimizer = torch.optim.SGD(self.get_trainable_parameters(lr), lr=lr, momentum=0.9)
 
         # train code
         for epoch in range(epochs):
@@ -224,8 +220,8 @@ class SNN(torch.nn.Module):
         with torch.no_grad():
             for x_batch, y_batch in data_dl:
                 output = self.predict(x_batch)
-                y_batch = torch.from_numpy(y_batch.astype(np.long)).to(self.device)
                 _, am = torch.max(output, 1)  # argmax over output units
+                y_batch = torch.from_numpy(y_batch.astype(np.long)).to(self.device)
                 tmp = np.mean((y_batch == am).detach().cpu().numpy())  # compare to labels
                 accs.append(tmp)
 
