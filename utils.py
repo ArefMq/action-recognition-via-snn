@@ -73,6 +73,9 @@ import seaborn as sns
 # New ones are here:
 
 def plot_spikes_in_time(layer, batch_id=0):
+    if not layer.HAS_PARAM:
+        return
+
     if layer.IS_CONV:
         _plot_spikes_conv(layer, batch_id)
     else:
@@ -80,25 +83,26 @@ def plot_spikes_in_time(layer, batch_id=0):
 
 
 def _plot_spikes_dense(layer, batch_id=0):
-    spk_rec_hist = layer.spk_rec_hist[batch_id]
-    mem_rec_hist = layer.mem_rec_hist[batch_id]
+    if 'mem_rec_hist' in layer.__dict__:
+        mem_rec_hist = layer.mem_rec_hist[batch_id]
+        for i in range(mem_rec_hist.shape[1]):
+            plt.plot(mem_rec_hist[:, i], label='mem')
+        plt.xlabel('Time')
+        plt.ylabel('Membrace Potential')
+        plt.show()
 
-    for i in range(mem_rec_hist.shape[1]):
-        plt.plot(mem_rec_hist[:, i], label='mem')
-    plt.xlabel('Time')
-    plt.ylabel('Membrace Potential')
+    if 'spk_rec_hist' in layer.__dict__:
+        spk_rec_hist = layer.spk_rec_hist[batch_id]
+        plt.plot(spk_rec_hist, 'b.')
+        plt.xlabel('Time')
+        plt.ylabel('Spikes')
+        plt.show()
 
-    plt.show()
-    plt.plot(spk_rec_hist, 'b.')
-    plt.xlabel('Time')
-    plt.ylabel('Spikes')
-    plt.show()
-
-    plt.matshow(spk_rec_hist)
-    plt.xlabel('Neuron')
-    plt.ylabel('Spike Time')
-    plt.axis([-1, spk_rec_hist.shape[1], -1, spk_rec_hist.shape[0]])
-    plt.show()
+        plt.matshow(spk_rec_hist)
+        plt.xlabel('Neuron')
+        plt.ylabel('Spike Time')
+        plt.axis([-1, spk_rec_hist.shape[1], -1, spk_rec_hist.shape[0]])
+        plt.show()
 
 
 def _plot_spikes_conv(layer, batch_id=0):

@@ -70,9 +70,7 @@ class ReadoutLayer(torch.nn.Module):
 
         # save mem_rec for plotting
         self.mem_rec_hist = mem_rec.detach().cpu().numpy()
-
-        loss = None
-        return output#, loss
+        return output
 
     def reset_parameters(self):
         torch.nn.init.normal_(self.w, mean=self.w_init_mean, std=self.w_init_std * np.sqrt(1. / np.prod(self.input_shape)))

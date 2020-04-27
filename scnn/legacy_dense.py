@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from scnn.default_configs import *
+from .default_configs import *
 
 
 class LegacyDense(torch.nn.Module):
