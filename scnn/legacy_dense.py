@@ -6,6 +6,7 @@ from scnn.default_configs import *
 class LegacyDense(torch.nn.Module):
     IS_CONV = False
     IS_SPIKING = True
+    HAS_PARAM = True
 
     def __init__(self, input_shape, output_shape, spike_fn, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD,
                  recurrent=False, lateral_connections=True, eps=EPSILON):
