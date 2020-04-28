@@ -36,13 +36,6 @@ class SpikingDenseLayer(torch.nn.Module):
         self.mem_rec_hist = None
         self.training = True
 
-        # TODO : check this
-        tau_mem = 10e-3
-        tau_syn = 5e-3
-        time_step = 1e-3
-        self._alpha = float(np.exp(-time_step / tau_syn))
-        self._beta = float(np.exp(-time_step / tau_mem))
-
     def get_trainable_parameters(self, lr):
         res = [
             {'params': self.w, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY},
@@ -62,7 +55,6 @@ class SpikingDenseLayer(torch.nn.Module):
 
         # membrane potential 
         mem = torch.zeros((batch_size, self.output_shape), dtype=x.dtype, device=x.device)
-        syn = torch.zeros((batch_size, self.output_shape), device=x.device, dtype=x.dtype)  # FIXME
         spk = torch.zeros((batch_size, self.output_shape), dtype=x.dtype, device=x.device)
 
         # output spikes recording
@@ -75,10 +67,6 @@ class SpikingDenseLayer(torch.nn.Module):
         norm = (self.w ** 2).sum(0)
 
         for t in range(nb_steps):
-            # spike term
-            mthr = torch.einsum("ab,b->ab", mem, 1. / (norm + self.eps)) - self.b
-            spk = self.spike_fn(mthr)
-
             # reset term
             if self.lateral_connections:
                 rst = torch.einsum("ab,bc ->ac", spk, d)
@@ -89,17 +77,9 @@ class SpikingDenseLayer(torch.nn.Module):
             if self.recurrent:
                 input_ = input_ + torch.einsum("ab,bc->ac", spk, self.v)
 
-            # membrane potential update
-            # FIXME : check to see if it's better to train alpha and beta or not
-            new_syn = self._alpha * syn + input_
-            new_mem = self._beta * mem + syn - rst
-            mem = new_mem
-            syn = new_syn
-
-            # mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
-            # TODO : check if it's better to do this in the next fram (like legacy) or not
-            # mthr = torch.einsum("ab,b->ab", mem, 1. / (norm + self.eps)) - self.b
-            # spk = self.spike_fn(mthr)
+            mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
+            mthr = torch.einsum("ab,b->ab", mem, 1. / (norm + self.eps)) - self.b
+            spk = self.spike_fn(mthr)
 
             spk_rec[:, t, :] = spk
             self.mem_rec_hist[:, t, :] = mem

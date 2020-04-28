@@ -187,6 +187,27 @@ def _plot_spikes_conv(layer, batch_id=0):
             counter += 1
     plt.show()
 
+    # Draw  Filters
+    horiz = int(np.floor(100 / layer.kernel_size[-1]))
+    verti = int(np.ceil(layer.input_channels * layer.output_channels / horiz))
+
+    gs = GridSpec(verti, horiz)
+    plt.figure(figsize=(10, 10))
+
+    counter = 0
+    for c_output in range(layer.output_channels):
+        for c_input in range(layer.input_channels):
+            if counter == 0:
+                a0 = ax = plt.subplot(gs[counter])
+            else:
+                ax = plt.subplot(gs[counter], sharey=a0)
+            ax.imshow(layer.w.detach().numpy()[c_output, c_input, 0, :, :], cmap=plt.cm.gray_r, origin="lower", aspect='equal')
+            ax.set_yticklabels([])
+            ax.set_xticklabels([])
+            # plt.title('in(%d) - out(%d)' % (t, n))
+            counter += 1
+    plt.show()
+
 
 def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test):
     print('\n----------------------------------------')
@@ -206,6 +227,7 @@ def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test):
     plt.xlabel("Truth")
     plt.ylabel("Prediction")
     plt.show()
+
 
 def plot_metrics(res):
     plt.plot(res['train_loss'], 'b', label='train')
