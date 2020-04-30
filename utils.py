@@ -142,7 +142,7 @@ def _plot_spikes_conv(layer, batch_id=0):
     plt.ylabel('Spikes')
     plt.show()
 
-    plt.matshow(flat_spk, cmap=plt.cm.gray_r, origin="lower", aspect='auto')
+    plt.matshow(flat_spk, cmap=plt.cm.gray_r, origin="upper", aspect='auto')
     plt.xlabel('Neuron')
     plt.ylabel('Spike Time')
     plt.axis([-1, flat_spk.shape[1], -1, flat_spk.shape[0]])
@@ -182,7 +182,7 @@ def _plot_spikes_conv(layer, batch_id=0):
                 a0 = ax = plt.subplot(gs[counter])
             else:
                 ax = plt.subplot(gs[counter], sharey=a0)
-            ax.imshow(spk_rec_hist[t, n, :, :], cmap=plt.cm.gray_r, origin="lower", aspect='auto')
+            ax.imshow(spk_rec_hist[t, n, :, :], cmap=plt.cm.gray_r, origin="upper", aspect='auto')
             plt.title('t(%d) - n(%d)' % (t, n))
             counter += 1
     plt.show()
@@ -201,7 +201,7 @@ def _plot_spikes_conv(layer, batch_id=0):
                 a0 = ax = plt.subplot(gs[counter])
             else:
                 ax = plt.subplot(gs[counter], sharey=a0)
-            ax.imshow(layer.w.detach().numpy()[c_output, c_input, 0, :, :], cmap=plt.cm.gray_r, origin="lower", aspect='equal')
+            ax.imshow(layer.w.detach().numpy()[c_output, c_input, 0, :, :], cmap=plt.cm.gray_r, origin="upper", aspect='equal')
             ax.set_yticklabels([])
             ax.set_xticklabels([])
             # plt.title('in(%d) - out(%d)' % (t, n))
