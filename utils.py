@@ -188,7 +188,7 @@ def _plot_spikes_conv(layer, batch_id=0):
     plt.show()
 
     # Draw  Filters
-    horiz = int(np.floor(100 / layer.kernel_size[-1]))
+    horiz = int(np.floor(37 / layer.kernel_size[-1]))
     verti = int(np.ceil(layer.input_channels * layer.output_channels / horiz))
 
     gs = GridSpec(verti, horiz)
