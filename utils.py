@@ -201,7 +201,7 @@ def _plot_spikes_conv(layer, batch_id=0):
                 a0 = ax = plt.subplot(gs[counter])
             else:
                 ax = plt.subplot(gs[counter], sharey=a0)
-            ax.imshow(layer.w.detach().numpy()[c_output, c_input, 0, :, :], cmap=plt.cm.gray_r, origin="upper", aspect='equal')
+            ax.imshow(layer.w.detach().cpu().numpy()[c_output, c_input, 0, :, :], cmap=plt.cm.gray_r, origin="upper", aspect='equal')
             ax.set_yticklabels([])
             ax.set_xticklabels([])
             # plt.title('in(%d) - out(%d)' % (t, n))
@@ -218,14 +218,14 @@ def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test):
 
     sns.heatmap(heatmap_train)
     plt.title('Train Result Heatmap (%.1f%%)' % (np.mean(np.array(train_accuracy))*100))
-    plt.xlabel("Truth")
-    plt.ylabel("Prediction")
+    plt.xlabel("Prediction")
+    plt.ylabel("Truth")
     plt.show()
 
     sns.heatmap(heatmap_test)
     plt.title('Test Result Heatmap (%.1f%%)' % (np.mean(np.array(test_accuracy))*100))
-    plt.xlabel("Truth")
-    plt.ylabel("Prediction")
+    plt.xlabel("Prediction")
+    plt.ylabel("Truth")
     plt.show()
 
 

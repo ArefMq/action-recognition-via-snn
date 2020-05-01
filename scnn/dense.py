@@ -39,8 +39,8 @@ class SpikingDenseLayer(torch.nn.Module):
     def get_trainable_parameters(self, lr):
         res = [
             {'params': self.w, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY},
-            {'params': self.b},
-            {'params': self.beta},
+            {'params': self.b, 'lr': lr},
+            {'params': self.beta, 'lr': lr},
         ]
 
         if self.recurrent:

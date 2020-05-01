@@ -44,11 +44,11 @@ class LegacyDense(torch.nn.Module):
     def get_trainable_parameters(self, lr):
         res = [
             {'params': self.w, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY},
-            {'params': self.b},
+            {'params': self.b, 'lr': lr},
         ]
 
         if self.recurrent:
-            res.append({'params': self.v})
+            res.append({'params': self.v, 'lr': lr})
         return res
 
     def forward(self, x):

@@ -38,11 +38,11 @@ class ReadoutLayer(torch.nn.Module):
     def get_trainable_parameters(self, lr):
         res = [
             {'params': self.w, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY},
-            {'params': self.b},
+            {'params': self.b, 'lr': lr},
         ]
 
         if self.time_reduction == "max":
-            res.append({'params': self.beta})
+            res.append({'params': self.beta, 'lr': lr})
         return res
 
     def forward(self, x):

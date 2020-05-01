@@ -28,7 +28,7 @@ class SNN(torch.nn.Module):
             self.device = device
         self.to(device, dtype)
 
-    def get_trainable_parameters(self, lr):
+    def get_trainable_parameters(self, lr=None):
         res = []
         for l in self.layers:
             res.extend(l.get_trainable_parameters(lr))
@@ -138,12 +138,17 @@ class SNN(torch.nn.Module):
         if loss_func is None:
             loss_func = torch.nn.NLLLoss()
         if dataset_size is None:
-            dataset_size = 0.
+            dataset_size = [0., 0.]
             for _, _ in data_loader('train'):
-                dataset_size += 1.
-                if dataset_size % 64 == 1:
-                    print('\rpre-processing dataset: %d' % dataset_size, end='')
-            print('\rpre-processing dataset: %d' % dataset_size)
+                dataset_size[0] += 1.
+                if dataset_size[0] % 64 == 1:
+                    print('\rpre-processing dataset: %d' % dataset_size[0], end='')
+            print('\rpre-processing dataset: %d' % dataset_size[0])
+            for _, _ in data_loader('test'):
+                dataset_size[1] += 1.
+                if dataset_size[1] % 64 == 1:
+                    print('\rpre-processing dataset: %d' % dataset_size[1], end='')
+            print('\rpre-processing dataset: %d' % dataset_size[1])
         if optimizer is None:
             lr = 0.1
             optimizer = torch.optim.SGD(self.get_trainable_parameters(lr), lr=lr, momentum=0.9)
