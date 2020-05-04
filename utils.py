@@ -209,7 +209,7 @@ def _plot_spikes_conv(layer, batch_id=0):
     plt.show()
 
 
-def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test):
+def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test, save_plot_path=None):
     print('\n----------------------------------------')
     train_accuracy, heatmap_train = network.compute_classification_accuracy(data_dl_train)
     print("Final Train Accuracy=%.2f%%" % (train_accuracy * 100.))
@@ -221,23 +221,31 @@ def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test):
     plt.xlabel("Prediction")
     plt.ylabel("Truth")
     plt.show()
+    if save_plot_path is not None:
+        plt.savefig(save_plot_path + 'train_truth.png')
 
     sns.heatmap(heatmap_test)
     plt.title('Test Result Heatmap (%.1f%%)' % (np.mean(np.array(test_accuracy))*100))
     plt.xlabel("Prediction")
     plt.ylabel("Truth")
     plt.show()
+    if save_plot_path is not None:
+        plt.savefig(save_plot_path + 'test_truth.png')
 
 
-def plot_metrics(res):
+def plot_metrics(res, save_plot_path=None):
     plt.plot(res['train_loss'], 'b', label='train')
     plt.plot(res['test_loss'], 'r--', label='test')
     plt.title('Loss Value')
     plt.legend()
     plt.show()
+    if save_plot_path is not None:
+        plt.savefig(save_plot_path + 'loss.png')
 
     plt.plot(res['train_acc'], 'b', label='train')
     plt.plot(res['test_acc'], 'r--', label='test')
     plt.title('Accuracy Metrics')
     plt.legend()
     plt.show()
+    if save_plot_path is not None:
+        plt.savefig(save_plot_path + 'accuracy.png')

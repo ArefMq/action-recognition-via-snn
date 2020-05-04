@@ -9,8 +9,11 @@ class ReadoutLayer(torch.nn.Module):
     IS_SPIKING = False
     HAS_PARAM = True
 
-    def __init__(self, input_shape, output_shape, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD, eps=EPSILON, time_reduction="mean"):
+    def __init__(self, input_shape, output_shape, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD, eps=EPSILON,
+                 time_reduction="mean"):
 
+        if time_reduction == 'avg':
+            time_reduction = 'mean'
         assert time_reduction in ["mean", "max"], 'time_reduction should be "mean" or "max"'
 
         super(ReadoutLayer, self).__init__()
@@ -25,7 +28,6 @@ class ReadoutLayer(torch.nn.Module):
         self.time_reduction = time_reduction
 
         self.w = torch.nn.Parameter(torch.empty((input_shape, output_shape)), requires_grad=True)
-#         self.w = torch.nn.Parameter(torch.empty((10, 20)), requires_grad=True)
         if time_reduction == "max":
             self.beta = torch.nn.Parameter(torch.tensor(0.7 * np.ones((1))), requires_grad=True)
         self.b = torch.nn.Parameter(torch.empty(output_shape), requires_grad=True)
@@ -37,7 +39,7 @@ class ReadoutLayer(torch.nn.Module):
 
     def get_trainable_parameters(self, lr):
         res = [
-            {'params': self.w, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY},
+            {'params': self.w, 'lr': lr},  # , "weight_decay": DEFAULT_WEIGHT_DECAY},
             {'params': self.b, 'lr': lr},
         ]
 
@@ -73,7 +75,8 @@ class ReadoutLayer(torch.nn.Module):
         return output
 
     def reset_parameters(self):
-        torch.nn.init.normal_(self.w, mean=self.w_init_mean, std=self.w_init_std * np.sqrt(1. / np.prod(self.input_shape)))
+        torch.nn.init.normal_(self.w, mean=self.w_init_mean,
+                              std=self.w_init_std * np.sqrt(1. / np.prod(self.input_shape)))
         if self.time_reduction == "max":
             torch.nn.init.normal_(self.beta, mean=0.7, std=0.01)
         torch.nn.init.normal_(self.b, mean=1., std=0.01)

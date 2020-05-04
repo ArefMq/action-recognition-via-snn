@@ -38,7 +38,7 @@ class SpikingDenseLayer(torch.nn.Module):
 
     def get_trainable_parameters(self, lr):
         res = [
-            {'params': self.w, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY},
+            {'params': self.w, 'lr': lr}, #, "weight_decay": DEFAULT_WEIGHT_DECAY},
             {'params': self.b, 'lr': lr},
             {'params': self.beta, 'lr': lr},
         ]
@@ -53,7 +53,7 @@ class SpikingDenseLayer(torch.nn.Module):
 
         h = torch.einsum("abc,cd->abd", x, self.w)
 
-        # membrane potential 
+        # membrane potential
         mem = torch.zeros((batch_size, self.output_shape), dtype=x.dtype, device=x.device)
         spk = torch.zeros((batch_size, self.output_shape), dtype=x.dtype, device=x.device)
 
