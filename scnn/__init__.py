@@ -14,13 +14,18 @@ from .heaviside import SurrogateHeaviside
 from .readin import ReadInLayer
 
 
+def default_notifier(*msg, **kwargs):
+    if kwargs.get('print_in_console', True):
+        print(*msg)
+
+
 class SNN(torch.nn.Module):
     def __init__(self, spike_fn=None, device=None, dtype=None, time_expector=None, notifier=None, input_layer=None):
         super(SNN, self).__init__()
         self.layers = [] if input_layer is None else [input_layer]
         self.default_spike_fn = spike_fn if spike_fn is not None else SurrogateHeaviside.apply
         self.time_expector = time_expector
-        self.notifier = notifier
+        self.notifier = notifier if notifier is not None else default_notifier
         self.dtype = torch.float if dtype is None else dtype
         if device is None:
             self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -121,10 +126,11 @@ class SNN(torch.nn.Module):
 
     @staticmethod
     def write_result_log(file, loss, val_los, acc, val_acc):
-        file.write('loss= % f' % loss)
-        file.write('val_los = %f' % val_los)
-        file.write('acc = %f' % acc)
-        file.write('val_acc = %f' % val_acc)
+        file.write('loss= % f\n' % loss)
+        file.write('val_los = %f\n' % val_los)
+        file.write('acc = %f\n' % acc)
+        file.write('val_acc = %f\n' % val_acc)
+        file.write('--------------------------------------------\n')
 
     def save_network_summery(self, file):
         # for l in self.layers:
@@ -166,6 +172,9 @@ class SNN(torch.nn.Module):
             'train_acc': [],
             'test_acc': []
         }
+
+        if result_file is not None:
+            result_file.write('New Run\n------------------------------\n')
 
         for epoch in range(epochs):
             if self.time_expector is not None:
@@ -219,8 +228,12 @@ class SNN(torch.nn.Module):
             if save_checkpoints:
                 self.save_checkpoint()
 
+            self.notifier('epoch %d ended (acc=%.2f ~ %.2f)' % (epoch, train_accuracy, valid_accuracy), print_in_console=False)
+
             if self.time_expector is not None:
                 self.time_expector.tock()
+
+        self.notifier('Done', mark='ok', print_in_console=False)
         return res_metrics
 
     def batch_step(self, loss_func, xb, yb, opt=None):

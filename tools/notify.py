@@ -14,6 +14,7 @@ def notify(*msgs, **kwargs):
     title = kwargs.get('title', None)
     channel = kwargs.get('channel', None)
     icon = kwargs.get('icon', None)
+    print_in_console = kwargs.get('print_in_console', True)
 
     if mark is None:
         pass
@@ -32,10 +33,12 @@ def notify(*msgs, **kwargs):
 
     msg = '' if mark is None else ('%s ' % mark)
     msg += '  '.join([str(m) for m in msgs])
-    if title is not None:
-        print('%s) \t%s' % (title, msg))
-    else:
-        print(msg)
+    if print_in_console:
+        if title is not None:
+            print('%s) \t%s' % (title, msg))
+        else:
+            print(msg)
+
     if not _SLACK_NOTIFY:
         return
 
