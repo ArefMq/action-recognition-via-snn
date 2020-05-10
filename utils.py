@@ -223,6 +223,7 @@ def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test, save_p
     plt.show()
     if save_plot_path is not None:
         plt.savefig(save_plot_path + 'train_truth.png')
+        plt.close()
 
     sns.heatmap(heatmap_test)
     plt.title('Test Result Heatmap (%.1f%%)' % (np.mean(np.array(test_accuracy))*100))
@@ -231,16 +232,23 @@ def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test, save_p
     plt.show()
     if save_plot_path is not None:
         plt.savefig(save_plot_path + 'test_truth.png')
+        plt.close()
 
 
 def plot_metrics(res, save_plot_path=None):
-    plt.plot(res['train_loss'], 'b', label='train')
-    plt.plot(res['test_loss'], 'r--', label='test')
+    plt.plot(res['train_loss_mean'], 'b', label='train')
+    plt.plot(res['train_loss_max'], 'b--')
+    plt.plot(res['train_loss_min'], 'b--')
+
+    plt.plot(res['test_loss_mean'], 'r', label='test')
+    plt.plot(res['test_loss_max'], 'r--')
+    plt.plot(res['test_loss_min'], 'r--')
     plt.title('Loss Value')
     plt.legend()
     plt.show()
     if save_plot_path is not None:
         plt.savefig(save_plot_path + 'loss.png')
+        plt.close()
 
     plt.plot(res['train_acc'], 'b', label='train')
     plt.plot(res['test_acc'], 'r--', label='test')
@@ -249,3 +257,4 @@ def plot_metrics(res, save_plot_path=None):
     plt.show()
     if save_plot_path is not None:
         plt.savefig(save_plot_path + 'accuracy.png')
+        plt.close()

@@ -154,7 +154,19 @@ class SNN(torch.nn.Module):
             optimizer = torch.optim.SGD(self.get_trainable_parameters(lr), lr=lr, momentum=0.9)
 
         # train code
-        res_metrics = {'train_loss_mean': [], 'test_loss_mean': [], 'train_loss': [], 'test_loss': [], 'train_acc': [], 'test_acc': []}
+        res_metrics = {
+            'train_loss_mean': [],
+            'test_loss_mean': [],
+
+            'train_loss_max': [],
+            'train_loss_min': [],
+            'test_loss_max': [],
+            'test_loss_min': [],
+
+            'train_acc': [],
+            'test_acc': []
+        }
+
         for epoch in range(epochs):
             if self.time_expector is not None:
                 self.time_expector.tick(epochs - epoch)
@@ -170,7 +182,8 @@ class SNN(torch.nn.Module):
                 l, n = self.batch_step(loss_func, x_batch, y_batch, optimizer)
                 losses.append(l)
                 nums.append(n)
-                res_metrics['train_loss'].append(l)
+            res_metrics['train_loss_max'].append(np.max(losses))
+            res_metrics['train_loss_min'].append(np.min(losses))
             train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
             # evaluate
@@ -185,7 +198,8 @@ class SNN(torch.nn.Module):
                     l, n = self.batch_step(loss_func, x_batch, y_batch)
                     losses.append(l)
                     nums.append(n)
-                    res_metrics['test_loss'].append(l)
+            res_metrics['test_loss_max'].append(np.max(losses))
+            res_metrics['test_loss_min'].append(np.min(losses))
             val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
             # finishing up
