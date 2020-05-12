@@ -58,7 +58,6 @@ def notify(*msgs, **kwargs):
         print('     can not write to channel...')
 
 
-
 if __name__ == "__main__":
     notify('test message')
     notify('and a message with everything', mark='heart', icon='ghost', channel='general', title='wonderful')
