@@ -288,3 +288,11 @@ class SNN(torch.nn.Module):
     def load(self, file):
         checkpoint = torch.load(file, map_location=self.device)
         self.load_state_dict(checkpoint['model_state_dict'])
+
+    def serialize(self):
+        res = ''
+        for l in self.layers:
+            if res != '':
+                res += ' => '
+            res += l.serialize()
+        return res

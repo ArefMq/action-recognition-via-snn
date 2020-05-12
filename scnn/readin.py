@@ -21,6 +21,9 @@ class ReadInLayer(torch.nn.Module):
     def get_trainable_parameters(self, lr):
         return []
 
+    def serialize(self):
+        return 'I(' + str(self.input_channels) + 'x' + 'x'.join([str(i) for i in self.input_shape]) + ')'
+
     def forward(self, x):
         batch_size = x.shape[0]
         nb_steps = x.shape[1]

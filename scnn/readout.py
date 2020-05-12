@@ -47,6 +47,9 @@ class ReadoutLayer(torch.nn.Module):
             res.append({'params': self.beta, 'lr': lr})
         return res
 
+    def serialize(self):
+        return self.time_reduction + '(' + str(self.output_shape) + ')'
+
     def forward(self, x):
         batch_size = x.shape[0]
         h = torch.einsum("abc,cd->abd", x, self.w)

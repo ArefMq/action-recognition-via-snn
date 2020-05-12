@@ -58,6 +58,14 @@ class SpikingConv3DLayer(torch.nn.Module):
             res.append({'params': self.v, 'lr': lr})
         return res
 
+    def serialize(self):
+        # FIXME: re-write this
+        return 'C3(' + str(self.input_channels) + 'x' + 'x'.join([str(i) for i in self.input_shape]) \
+                     + (',k' if self.kernel_size[0] == 1 else ',K') + str(self.kernel_size[1]) \
+                     + (',l' if self.lateral_connections else '') \
+                     + (',r' if self.recurrent else '') \
+                     + ')'
+
     def forward(self, x):
         batch_size = x.shape[0]
         nb_steps = x.shape[2]

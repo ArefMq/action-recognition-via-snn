@@ -47,6 +47,9 @@ class SpikingDenseLayer(torch.nn.Module):
             res.append({'params': self.v})
         return res
 
+    def serialize(self):
+        return 'D(' + str(self.output_shape) + ('r' if self.recurrent else '') + ')'
+
     def forward(self, x):
         batch_size = x.shape[0]
         nb_steps = x.shape[1]

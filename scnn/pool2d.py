@@ -35,6 +35,10 @@ class SpikingPool2DLayer(torch.nn.Module):
     def get_trainable_parameters(self, lr):
         return []
 
+    def serialize(self):
+        # FIXME: handle other variations
+        return 'P(' + str(self.kernel_size[0]) + ')'
+
     def forward(self, x):
         batch_size = x.shape[0]
         nb_steps = x.shape[2]
