@@ -60,7 +60,7 @@ class SpikingConv3DLayer(torch.nn.Module):
 
     def serialize(self):
         # FIXME: re-write this
-        return 'C3(' + str(self.input_channels) + 'x' + 'x'.join([str(i) for i in self.input_shape]) \
+        return 'C3(' + str(self.output_channels) \
                      + (',k' if self.kernel_size[0] == 1 else ',K') + str(self.kernel_size[1]) \
                      + (',l' if self.lateral_connections else '') \
                      + (',r' if self.recurrent else '') \

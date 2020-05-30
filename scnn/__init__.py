@@ -3,6 +3,7 @@ import numpy as np
 
 from time import time
 from os import path
+from os import walk
 
 from .conv1d import SpikingConv1DLayer
 from .conv2d import SpikingConv2DLayer
@@ -137,6 +138,9 @@ class SNN(torch.nn.Module):
         pass
 
     def fit(self, data_loader, epochs=5, loss_func=None, optimizer=None, dataset_size=None, result_file=None, save_checkpoints=True):
+        if self.time_expector is not None:
+            self.time_expector.reset()
+
         if result_file is not None:
             self.save_network_summery(result_file)
 
@@ -178,7 +182,7 @@ class SNN(torch.nn.Module):
 
         for epoch in range(epochs):
             if self.time_expector is not None:
-                self.time_expector.tick(epochs - epoch)
+                self.time_expector.macro_tick()
 
             # train
             dataset_counter = 0
@@ -187,8 +191,9 @@ class SNN(torch.nn.Module):
             nums = []
             for x_batch, y_batch in data_loader('train'):
                 dataset_counter += 1
-                self.print_progress('Epoch: %d' % epoch, dataset_counter / dataset_size[0], a='-', c='.')
+                self.print_progress(epoch, epochs, dataset_counter, dataset_size)
                 l, n = self.batch_step(loss_func, x_batch, y_batch, optimizer)
+                self.reset_timer()
                 losses.append(l)
                 nums.append(n)
             res_metrics['train_loss_max'].append(np.max(losses))
@@ -203,8 +208,9 @@ class SNN(torch.nn.Module):
                 dataset_counter = 0
                 for x_batch, y_batch in data_loader('test'):
                     dataset_counter += 1
-                    self.print_progress('Epoch: %d' % epoch, dataset_counter / dataset_size[1], a='=', c='-')
+                    self.print_progress(epoch, epochs, dataset_counter, dataset_size, test=True)
                     l, n = self.batch_step(loss_func, x_batch, y_batch)
+                    self.reset_timer()
                     losses.append(l)
                     nums.append(n)
             res_metrics['test_loss_max'].append(np.max(losses))
@@ -212,15 +218,20 @@ class SNN(torch.nn.Module):
             val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
             # finishing up
+            self.print_progress(epoch, epochs, dataset_counter, dataset_size, finished=True)
             res_metrics['train_loss_mean'].append(train_loss)
             res_metrics['test_loss_mean'].append(val_loss)
-            print("  | loss=%.3f val_loss=%.3f" % (train_loss, val_loss))
 
             train_accuracy = self.compute_classification_accuracy(data_loader('acc_train'), False)
             valid_accuracy = self.compute_classification_accuracy(data_loader('acc_test'), False)
             res_metrics['train_acc'].append(train_accuracy)
             res_metrics['test_acc'].append(valid_accuracy)
-            print('train_accuracy=%.2f%%  |  valid_accuracy=%.2f%%' % (train_accuracy * 100., valid_accuracy * 100.))
+
+            print('')
+            print('| Lss.Trn | Lss.Tst | Acc.Trn | Acc.Tst |')
+            print('|---------|---------|---------|---------|')
+            print('|  %6.4f |  %6.4f | %6.2f%% | %6.2f%% |' % (train_loss, val_loss, train_accuracy * 100., valid_accuracy * 100.))
+            print('')
 
             if result_file is not None:
                 self.write_result_log(result_file, train_loss, val_loss, train_accuracy, valid_accuracy)
@@ -229,9 +240,6 @@ class SNN(torch.nn.Module):
                 self.save_checkpoint()
 
             self.notifier('epoch %d ended (acc=%.2f ~ %.2f)' % (epoch, train_accuracy, valid_accuracy), print_in_console=False)
-
-            if self.time_expector is not None:
-                self.time_expector.tock()
 
         self.notifier('Done', mark='ok', print_in_console=False)
         return res_metrics
@@ -273,9 +281,37 @@ class SNN(torch.nn.Module):
         else:
             return np.mean(accs)
 
+    def reset_timer(self):
+        if self.time_expector is not None:
+            self.time_expector.tock()
+
+    def print_progress(self, epoch, epoch_count, dataset_counter, dataset_size, test=False, finished=False):
+        d_size = dataset_size[1] if test else dataset_size[0]
+        iter_per_epoch = dataset_size[0] + dataset_size[1]
+        d_left = iter_per_epoch - dataset_counter
+        epoch_left = epoch_count - epoch - 1
+
+        if self.time_expector is not None:
+            if finished:
+                expectation = self.time_expector.macro_tock()
+            else:
+                self.time_expector.tick()
+                expectation = self.time_expector.expectation(epoch_left, d_left, iter_per_epoch)
+        else:
+            expectation = ''
+
+        self._print_progress('Epoch: %d' % (epoch+1),
+                             dataset_counter / d_size,
+                             a='=' if test or finished else '-',
+                             c='-' if test or finished else '.',
+                             expectation=expectation)
+
+        if finished:
+            print('')
+
     @staticmethod
-    def print_progress(msg, value, width=60, a='=', b='>', c='.'):
-        print('\r%s [%s%s%s] %d%%    ' % (msg, a*int((value-0.001)*width), b, c*int((1.-value)*width), value*100), end='')
+    def _print_progress(msg, value, width=60, a='=', b='>', c='.', expectation=''):
+        print('\r%s [%s%s%s] %3d%%  %30s   ' % (msg, a*int((value-0.001)*width), b, c*int((1.-value)*width), value*100, expectation), end='')
 
     def save_checkpoint(self):
         self.save(path.join('checkpoints', 'result_checkpoint_%d.net' % time()))
@@ -296,3 +332,27 @@ class SNN(torch.nn.Module):
                 res += ' => '
             res += l.serialize()
         return res
+
+    def load_last_checkpoint(self, checkpoint_path='checkpoints'):
+        files = []
+        for (dirpath, dirnames, filenames) in walk(checkpoint_path):
+            files.extend(filenames)
+            break
+        files = [f.replace('result_checkpoint_', '').replace('.net', '') for f in files if f.endswith('.net') and f.startswith('result_checkpoint_')]
+
+        max_id = None
+        for f in files:
+            try:
+                i = int(f)
+                if max_id is None or i > max_id:
+                    max_id = i
+            except:
+                continue
+
+        if max_id is not None:
+            try:
+                self.load(path.join(checkpoint_path, 'result_checkpoint_%d.net' % max_id))
+                return True
+            except:
+                return False
+        return False

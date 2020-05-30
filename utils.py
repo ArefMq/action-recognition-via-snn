@@ -87,6 +87,8 @@ def _plot_spikes_dense(layer, batch_id=0):
         mem_rec_hist = layer.mem_rec_hist[batch_id]
         for i in range(mem_rec_hist.shape[1]):
             plt.plot(mem_rec_hist[:, i], label='mem')
+            if i > 30:
+                break
         plt.xlabel('Time')
         plt.ylabel('Membrace Potential')
         plt.show()
@@ -151,30 +153,16 @@ def _plot_spikes_conv(layer, batch_id=0):
     # Visual Plots
     max_visual = 5
 
-    #     debug_print(spk_rec_hist, 'spk', pytorch=False)
-    #     debug_print(mem_rec_hist, 'mem', pytorch=False)
-
     time_idx = list(range(0, time_step, int(time_step / max_visual)))
     neur_idx = np.random.randint(mem_rec_hist.shape[1], size=max_visual)
 
     gs = GridSpec(max_visual, max_visual)
     plt.figure(figsize=(30, 20))
 
-    #     counter = 0
-    #     for n in neur_idx:
-    #         for t in time_idx:
-    #             if counter == 0:
-    #                 a0 = ax = plt.subplot(gs[counter])
-    #             else:
-    #                 ax = plt.subplot(gs[counter], sharey=a0)
-    #             ax.imshow(spk_rec_hist[t, n, :, :], cmap=plt.cm.gray_r, origin="lower", aspect='auto')
-    #             plt.title('t(%d) - n(%d)' % (t, n))
-    #             counter += 1
-    #     plt.show()
-
     gs = GridSpec(max_visual, max_visual)
     plt.figure(figsize=(30, 20))
 
+    # Draw Time based mems
     counter = 0
     for n in neur_idx:
         for t in time_idx:
@@ -188,10 +176,7 @@ def _plot_spikes_conv(layer, batch_id=0):
     plt.show()
 
     # Draw  Filters
-    horiz = int(np.floor(37 / layer.kernel_size[-1]))
-    verti = int(np.ceil(layer.input_channels * layer.output_channels / horiz))
-
-    gs = GridSpec(verti, horiz)
+    gs = GridSpec(3, 20)
     plt.figure(figsize=(10, 10))
 
     counter = 0
@@ -206,8 +191,12 @@ def _plot_spikes_conv(layer, batch_id=0):
             ax.set_xticklabels([])
             # plt.title('in(%d) - out(%d)' % (t, n))
             counter += 1
-    plt.show()
 
+            if counter >= 60:
+                break
+        if counter >= 60:
+            break
+    plt.show()
 
 def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test, save_plot_path=None):
     plt.close()
