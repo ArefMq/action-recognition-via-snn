@@ -170,7 +170,7 @@ def _plot_spikes_conv(layer, batch_id=0):
                 a0 = ax = plt.subplot(gs[counter])
             else:
                 ax = plt.subplot(gs[counter], sharey=a0)
-            ax.imshow(spk_rec_hist[t, n, :, :], cmap=plt.cm.gray_r, origin="upper", aspect='auto')
+            ax.imshow(mem_rec_hist[t, n, :, :], cmap=plt.cm.gray_r, origin="upper", aspect='auto')
             plt.title('t(%d) - n(%d)' % (t, n))
             counter += 1
     plt.show()
