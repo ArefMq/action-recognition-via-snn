@@ -47,15 +47,20 @@ class SpikingConv3DLayer(torch.nn.Module):
         self.mem_rec_hist = None
         self.training = True
 
-    def get_trainable_parameters(self, lr):
+    def get_trainable_parameters(self, lr=None, weight_decay=None):
         res = [
-            {'params': self.w, 'lr': lr},  # , "weight_decay": DEFAULT_WEIGHT_DECAY},
-            {'params': self.b, 'lr': lr},
-            {'params': self.beta, 'lr': lr},
+            {'params': self.w},
+            {'params': self.b},
+            {'params': self.beta},
         ]
 
         if self.recurrent:
-            res.append({'params': self.v, 'lr': lr})
+            res.append({'params': self.v})
+        if lr is not None:
+            for r in res:
+                r['lr'] = lr
+        if weight_decay is not None:
+            res[0]['weight_decay'] = weight_decay
         return res
 
     def serialize(self):
@@ -80,10 +85,8 @@ class SpikingConv3DLayer(torch.nn.Module):
         mem = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x.dtype, device=x.device)
         spk = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x.dtype, device=x.device)
 
-        spk_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype,
-                              device=x.device)
-        mem_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype,
-                              device=x.device)
+        spk_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
+        mem_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype)
 
         if self.lateral_connections:
             d = torch.einsum("abcde, fbcde -> af", self.w, self.w)
@@ -106,10 +109,10 @@ class SpikingConv3DLayer(torch.nn.Module):
             spk = self.spike_fn(mthr)
 
             spk_rec[:, :, t, :, :] = spk
-            mem_rec[:, :, t, :, :] = mem
+            mem_rec[:, :, t, :, :] = mem.detach().cpu()
 
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
-        self.mem_rec_hist = mem_rec.detach().cpu().numpy()
+        self.mem_rec_hist = mem_rec.numpy()  # FIXME: do this refactor for other layers as well
 
         if self.flatten_output:
             output = torch.transpose(spk_rec, 1, 2).contiguous()

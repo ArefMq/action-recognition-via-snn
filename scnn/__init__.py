@@ -34,10 +34,10 @@ class SNN(torch.nn.Module):
             self.device = device
         self.to(device, dtype)
 
-    def get_trainable_parameters(self, lr=None):
+    def get_trainable_parameters(self, lr=None, weight_decay=None):
         res = []
         for l in self.layers:
-            res.extend(l.get_trainable_parameters(lr))
+            res.extend(l.get_trainable_parameters(lr=lr, weight_decay=weight_decay))
         return res
 
     def add_conv1d(self, **kwargs):

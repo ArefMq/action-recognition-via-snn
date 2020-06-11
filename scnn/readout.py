@@ -37,14 +37,19 @@ class ReadoutLayer(torch.nn.Module):
 
         self.mem_rec_hist = None
 
-    def get_trainable_parameters(self, lr):
+    def get_trainable_parameters(self, lr=None, weight_decay=None):
         res = [
-            {'params': self.w, 'lr': lr},  # , "weight_decay": DEFAULT_WEIGHT_DECAY},
-            {'params': self.b, 'lr': lr},
+            {'params': self.w},
+            {'params': self.b},
         ]
-
         if self.time_reduction == "max":
-            res.append({'params': self.beta, 'lr': lr})
+            res.append({'params': self.beta})
+
+        if lr is not None:
+            for r in res:
+                r['lr'] = lr
+        if weight_decay is not None:
+            res[0]['weight_decay'] = weight_decay
         return res
 
     def serialize(self):

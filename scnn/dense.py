@@ -36,15 +36,20 @@ class SpikingDenseLayer(torch.nn.Module):
         self.mem_rec_hist = None
         self.training = True
 
-    def get_trainable_parameters(self, lr):
+    def get_trainable_parameters(self, lr=None, weight_decay=None):
         res = [
-            {'params': self.w, 'lr': lr}, #, "weight_decay": DEFAULT_WEIGHT_DECAY},
-            {'params': self.b, 'lr': lr},
-            {'params': self.beta, 'lr': lr},
+            {'params': self.w},
+            {'params': self.b},
+            {'params': self.beta},
         ]
 
         if self.recurrent:
             res.append({'params': self.v})
+        if lr is not None:
+            for r in res:
+                r['lr'] = lr
+        if weight_decay is not None:
+            res[0]['weight_decay'] = weight_decay
         return res
 
     def serialize(self):
@@ -62,7 +67,7 @@ class SpikingDenseLayer(torch.nn.Module):
 
         # output spikes recording
         spk_rec = torch.zeros((batch_size, nb_steps, self.output_shape), dtype=x.dtype, device=x.device)
-        self.mem_rec_hist = torch.zeros((batch_size, nb_steps, self.output_shape), dtype=x.dtype, device=x.device)
+        self.mem_rec_hist = torch.zeros((batch_size, nb_steps, self.output_shape), dtype=x.dtype)
 
         if self.lateral_connections:
             d = torch.einsum("ab, ac -> bc", self.w, self.w)
@@ -85,11 +90,11 @@ class SpikingDenseLayer(torch.nn.Module):
             spk = self.spike_fn(mthr)
 
             spk_rec[:, t, :] = spk
-            self.mem_rec_hist[:, t, :] = mem
+            self.mem_rec_hist[:, t, :] = mem.detach().cpu()
 
             # save spk_rec for plotting
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
-        self.mem_rec_hist = self.mem_rec_hist.detach().cpu().numpy()
+        self.mem_rec_hist = self.mem_rec_hist.numpy()
         return spk_rec
 
     def reset_parameters(self):

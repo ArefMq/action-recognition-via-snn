@@ -55,15 +55,20 @@ class SpikingConv3DLayer(torch.nn.Module):
         self._alpha = float(np.exp(-time_step / tau_syn))
         self._beta = float(np.exp(-time_step / tau_mem))
 
-    def get_trainable_parameters(self, lr):
+    def get_trainable_parameters(self, lr=None, weight_decay=None):
         res = [
-            {'params': self.w, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY},
-            {'params': self.b, 'lr': lr},
-            {'params': self.beta, 'lr': lr},
+            {'params': self.w},
+            {'params': self.b},
+            {'params': self.beta},
         ]
 
         if self.recurrent:
             res.append({'params': self.v})
+        if lr is not None:
+            for r in res:
+                r['lr'] = lr
+        if weight_decay is not None:
+            res[0]['weight_decay'] = weight_decay
         return res
 
     def forward(self, x):

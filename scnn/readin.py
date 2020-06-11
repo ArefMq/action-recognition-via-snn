@@ -18,7 +18,7 @@ class ReadInLayer(torch.nn.Module):
 
         self.flatten_output = flatten_output
 
-    def get_trainable_parameters(self, lr):
+    def get_trainable_parameters(self, lr=None, weight_decay=None):
         return []
 
     def serialize(self):

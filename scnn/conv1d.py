@@ -46,15 +46,20 @@ class SpikingConv1DLayer(torch.nn.Module):
         self.spk_rec_hist = None
         self.training = True
 
-    def get_trainable_parameters(self, lr):
+    def get_trainable_parameters(self, lr=None, weight_decay=None):
         res = [
-            {'params': self.w, 'lr': lr, "weight_decay": DEFAULT_WEIGHT_DECAY},
+            {'params': self.w},
             {'params': self.b},
             {'params': self.beta},
         ]
 
         if self.recurrent:
             res.append({'params': self.v})
+        if lr is not None:
+            for r in res:
+                r['lr'] = lr
+        if weight_decay is not None:
+            res[0]['weight_decay'] = weight_decay
         return res
 
     def forward(self, x):
