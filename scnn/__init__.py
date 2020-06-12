@@ -139,7 +139,7 @@ class SNN(torch.nn.Module):
     def save_network_summery(self, file):
         file.write('\n============================================\n')
         file.write('New Run: ' + str(datetime.now()) + "\n")
-        file.write("network_design: " + self.serialize() + "\n")
+        file.write("network_design: " + self.serialize_to_text() + "\n")
         file.flush()
 
     def fit(self, data_loader, epochs=5, loss_func=None, optimizer=None, dataset_size=None, result_file=None, save_checkpoints=True):
@@ -319,7 +319,7 @@ class SNN(torch.nn.Module):
         print('\r%s [%s%s%s] %3d%%  %30s   ' % (msg, a*int((value-0.001)*width), b, c*int((1.-value)*width), value*100, expectation), end='')
 
     @staticmethod
-    def load_from_file(file, weight_file=None, device=None, dtype=None):
+    def from_file(file, weight_file=None, device=None, dtype=None):
         res = SNN(device=device, dtype=dtype)
         res.load(file, weight_file)
         return res.to(device, dtype)
@@ -336,7 +336,7 @@ class SNN(torch.nn.Module):
         self.load_state_dict(checkpoint['model_state_dict'])
 
     def save_checkpoint(self):
-        self.save(path.join('checkpoints', 'result_checkpoint_%d.net' % time()), False)
+        self.save(path.join('checkpoints', 'result_checkpoint_%d.net' % time()), save_structure=True)
 
     def save(self, file, weight_file=None, save_structure=True):
         if weight_file is None:
@@ -400,7 +400,14 @@ class SNN(torch.nn.Module):
             res.append(l.serialize())
         return {'time': time(), 'network': res}
 
-    def load_last_checkpoint(self, checkpoint_path='checkpoints'):
+    @staticmethod
+    def from_last_checkpoint(checkpoint_path='checkpoints', device=None, dtype=None):
+        res = SNN(device=device, dtype=dtype)
+        if not res.load_last_checkpoint(checkpoint_path, True):
+            print('Can not find/load any checkpoint')
+        return res.to(device, dtype)
+
+    def load_last_checkpoint(self, checkpoint_path='checkpoints', load_structure=False):
         files = []
         for (dirpath, dirnames, filenames) in walk(checkpoint_path):
             files.extend(filenames)
@@ -418,7 +425,7 @@ class SNN(torch.nn.Module):
 
         if max_id is not None:
             try:
-                self.load(path.join(checkpoint_path, 'result_checkpoint_%d.net' % max_id), load_structure=False)
+                self.load(path.join(checkpoint_path, 'result_checkpoint_%d.net' % max_id), load_structure=load_structure)
                 return True
             except:
                 return False
