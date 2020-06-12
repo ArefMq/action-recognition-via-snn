@@ -1,7 +1,9 @@
 import torch
 import numpy as np
 
+import json
 from time import time
+from datetime import datetime
 from os import path
 from os import walk
 
@@ -127,15 +129,18 @@ class SNN(torch.nn.Module):
 
     @staticmethod
     def write_result_log(file, loss, val_los, acc, val_acc):
-        file.write('loss= % f\n' % loss)
-        file.write('val_los = %f\n' % val_los)
-        file.write('acc = %f\n' % acc)
-        file.write('val_acc = %f\n' % val_acc)
+        file.write('loss: % f\n' % loss)
+        file.write('val_los: %f\n' % val_los)
+        file.write('acc: %f\n' % acc)
+        file.write('val_acc: %f\n' % val_acc)
         file.write('--------------------------------------------\n')
+        file.flush()
 
     def save_network_summery(self, file):
-        # for l in self.layers:
-        pass
+        file.write('\n============================================\n')
+        file.write('New Run: ' + str(datetime.now()) + "\n")
+        file.write("network_design: " + self.serialize() + "\n")
+        file.flush()
 
     def fit(self, data_loader, epochs=5, loss_func=None, optimizer=None, dataset_size=None, result_file=None, save_checkpoints=True):
         if self.time_expector is not None:
@@ -313,25 +318,87 @@ class SNN(torch.nn.Module):
     def _print_progress(msg, value, width=60, a='=', b='>', c='.', expectation=''):
         print('\r%s [%s%s%s] %3d%%  %30s   ' % (msg, a*int((value-0.001)*width), b, c*int((1.-value)*width), value*100, expectation), end='')
 
-    def save_checkpoint(self):
-        self.save(path.join('checkpoints', 'result_checkpoint_%d.net' % time()))
+    @staticmethod
+    def load_from_file(file, weight_file=None, device=None, dtype=None):
+        res = SNN(device=device, dtype=dtype)
+        res.load(file, weight_file)
+        return res.to(device, dtype)
 
-    def save(self, file):
-        torch.save({
-            'model_state_dict': self.state_dict(),
-        }, file)
+    def load(self, file, weight_file=None, load_structure=True):
+        if load_structure:
+            with open(file, 'r') as f:
+                network_ser = json.load(f)
+            self.deserialize(network_ser)
 
-    def load(self, file):
-        checkpoint = torch.load(file, map_location=self.device)
+        if weight_file is None:
+            weight_file = file + '.weight'
+        checkpoint = torch.load(weight_file, map_location=self.device)
         self.load_state_dict(checkpoint['model_state_dict'])
 
-    def serialize(self):
+    def save_checkpoint(self):
+        self.save(path.join('checkpoints', 'result_checkpoint_%d.net' % time()), False)
+
+    def save(self, file, weight_file=None, save_structure=True):
+        if weight_file is None:
+            weight_file = file + '.weight'
+        torch.save({
+            'model_state_dict': self.state_dict(),
+        }, weight_file)
+
+        if save_structure:
+            with open(file, 'w') as f:
+                json.dump(self.json_normalizer(self.serialize()), f, indent=2)
+
+    def _json_normalizer_list(self, j):
+        return [self.json_normalizer(i) for i in j]
+
+    def _json_normalizer_dict(self, j):
+        return {k: self.json_normalizer(v) for k, v in j.items()}
+
+    def json_normalizer(self, j):
+        if isinstance(j, dict):
+            return self._json_normalizer_dict(j)
+        elif isinstance(j, list):
+            return self._json_normalizer_list(j)
+        elif isinstance(j, np.ndarray):
+            return self._json_normalizer_list(list(j))
+        elif isinstance(j, np.int64):
+            return int(j)
+        else:
+            return j
+
+    def serialize_to_text(self):
         res = ''
         for l in self.layers:
             if res != '':
                 res += ' => '
-            res += l.serialize()
+            res += l.serialize_to_text()
         return res
+
+    def deserialize(self, network_ser):
+        for p in network_ser['network']:
+
+            if p['type'] == 'readin':
+                self.layers.append(ReadInLayer(**p['params']))
+            elif p['type'] == 'conv1d':
+                self.add_conv1d(**p['params'])
+            elif p['type'] == 'conv2d':
+                self.add_conv2d(**p['params'])
+            elif p['type'] == 'conv3d':
+                self.add_conv3d(**p['params'])
+            elif p['type'] == 'pool2d':
+                self.add_pool2d(**p['params'])
+            elif p['type'] == 'dense':
+                self.add_dense(**p['params'])
+            elif p['type'] == 'readout':
+                self.add_readout(**p['params'])
+        self.compile()
+
+    def serialize(self):
+        res = []
+        for l in self.layers:
+            res.append(l.serialize())
+        return {'time': time(), 'network': res}
 
     def load_last_checkpoint(self, checkpoint_path='checkpoints'):
         files = []
@@ -351,7 +418,7 @@ class SNN(torch.nn.Module):
 
         if max_id is not None:
             try:
-                self.load(path.join(checkpoint_path, 'result_checkpoint_%d.net' % max_id))
+                self.load(path.join(checkpoint_path, 'result_checkpoint_%d.net' % max_id), load_structure=False)
                 return True
             except:
                 return False

@@ -22,6 +22,15 @@ class ReadInLayer(torch.nn.Module):
         return []
 
     def serialize(self):
+        return {
+            'type': 'readin',
+            'params': {
+                'input_shape': self.input_shape,
+                'input_channels': self.input_channels
+            }
+        }
+
+    def serialize_to_text(self):
         return 'I(' + str(self.input_channels) + 'x' + 'x'.join([str(i) for i in self.input_shape]) + ')'
 
     def forward(self, x):

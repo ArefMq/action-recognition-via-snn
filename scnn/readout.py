@@ -53,6 +53,17 @@ class ReadoutLayer(torch.nn.Module):
         return res
 
     def serialize(self):
+        return {
+            'type': 'readout',
+            'params': {
+                'time_reduction': self.time_reduction,
+                'output_shape': self.output_shape,
+                'w_init_mean': self.w_init_mean,
+                'w_init_std': self.w_init_std,
+            }
+        }
+
+    def serialize_to_text(self):
         return self.time_reduction + '(' + str(self.output_shape) + ')'
 
     def forward(self, x):

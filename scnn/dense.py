@@ -53,6 +53,19 @@ class SpikingDenseLayer(torch.nn.Module):
         return res
 
     def serialize(self):
+        return {
+            'type': 'dense',
+            'params': {
+                'output_shape': self.output_shape,
+                'recurrent': self.recurrent,
+                'lateral_connections': self.lateral_connections,
+
+                'w_init_mean': self.w_init_mean,
+                'w_init_std': self.w_init_std,
+            }
+        }
+
+    def serialize_to_text(self):
         return 'D(' + str(self.output_shape) + ('r' if self.recurrent else '') + ')'
 
     def forward(self, x):

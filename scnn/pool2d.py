@@ -36,6 +36,15 @@ class SpikingPool2DLayer(torch.nn.Module):
         return []
 
     def serialize(self):
+        return {
+            'type': 'pool2d',
+            'params': {
+                'kernel_size': self.kernel_size,
+                'stride': self.stride
+            }
+        }
+
+    def serialize_to_text(self):
         # FIXME: handle other variations
         return 'P(' + str(self.kernel_size[0]) + ')'
 

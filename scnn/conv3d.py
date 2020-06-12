@@ -64,6 +64,23 @@ class SpikingConv3DLayer(torch.nn.Module):
         return res
 
     def serialize(self):
+        return {
+            'type': 'conv3d',
+            'params': {
+                'kernel_size': self.kernel_size,
+                'dilation': self.dilation,
+                'stride': self.stride,
+                'output_channels': self.output_channels,
+
+                'recurrent': self.recurrent,
+                'lateral_connections': self.lateral_connections,
+
+                'w_init_mean': self.w_init_mean,
+                'w_init_std': self.w_init_std,
+            }
+        }
+
+    def serialize_to_text(self):
         # FIXME: re-write this
         return 'C3(' + str(self.output_channels) \
                      + (',k' if self.kernel_size[0] == 1 else ',K') + str(self.kernel_size[1]) \
