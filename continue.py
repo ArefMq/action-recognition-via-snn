@@ -3,24 +3,24 @@
 import argparse
 import torch
 import numpy as np
+
 import matplotlib
+matplotlib.use('Agg')
 
 from gpu_checker import wait_until_gpu_is_free
 
-from utils import plot_metrics
 from scnn import SNN
 from scnn.optim import RAdam
-
+from utils import plot_metrics
 from data.data_augmentor import batchify
-from tools.time_expector import TimeExpector
+
 # from tools.notify import notify
 
-matplotlib.use('Agg')
-SAVE_PLOTS = False
+from tools.time_expector import TimeExpector
 time_expector = TimeExpector()
 
 # configurations
-batch_size = 4
+batch_size = 16
 nb_frame = 40
 CACHE_FOLDER_PATH = "/home/aref/dataset/dvs-dataset"
 DATASET_FOLDER_PATH = "/home/aref/dataset/dvs-dataset"
@@ -68,7 +68,7 @@ def small_dataset_generator():
 
 
 def medium_dataset_generator():
-    original_size = 700
+    original_size = 2048
     for __xb, __yb in batchify(
             'train',
             DATASET_FOLDER_PATH,
@@ -133,17 +133,20 @@ def large_dataset_generator():
     return load_data
 
 
-def main(epochs, load_data, opt_adam, lr, weight_decay, read_from_saved, read_from_file):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def main(epochs, load_data, opt_adam, lr, weight_decay, read_from_saved, read_from_file, force_cpu, nosave):
+    if force_cpu:
+        device = torch.device("cpu")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dtype = torch.float
-    print("Device:", device)
+    print("Running on:", device)
 
     if read_from_file is not None:
         network = SNN.from_file(read_from_file)
     elif read_from_saved:
-        network = SNN.from_file('logs/save_network.net')
+        network = SNN.from_file('logs/save_network.net', device=device, dtype=dtype)
     else:
-        network = SNN.from_last_checkpoint()
+        network = SNN.from_last_checkpoint(device=device, dtype=dtype)
     network.time_expector = time_expector
     # network.notifier = notify # FIXME
 
@@ -152,47 +155,61 @@ def main(epochs, load_data, opt_adam, lr, weight_decay, read_from_saved, read_fr
     else:
         opt = torch.optim.SGD(network.get_trainable_parameters(lr, weight_decay), lr=lr, momentum=0.9)
 
-    with open('logs/results.log', 'w+') as f:
+    if not nosave:
+        with open('logs/results.log', 'a+') as f:
+            res_metrics = network.fit(
+                load_data,
+                epochs=epochs,
+                optimizer=opt,
+                result_file=f,
+                save_checkpoints=True
+            )
+    else:
         res_metrics = network.fit(
             load_data,
             epochs=epochs,
             optimizer=opt,
-            result_file=f,
-            save_checkpoints=True
+            save_checkpoints=False
         )
-        plot_metrics(res_metrics, save_plot_path='./logs/metrics_C_' if SAVE_PLOTS else None)
 
-    network.save('logs/save_network.net')
+    plot_metrics(res_metrics, save_plot_path=None if nosave else './logs/metrics_C_')
+    if not nosave:
+        network.save('logs/save_network.net')
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-e", "--epochs", type=int, help="Number of iteration to train the network (default=10)",
-                        default=10)
+    try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("-e", "--epochs", type=int, help="Number of iteration to train the network (default=10)",
+                            default=10)
 
-    group1 = parser.add_mutually_exclusive_group()
-    group1.add_argument("-s", "--small", action="store_true", help="Set dataset size to small")
-    group1.add_argument("-m", "--medium", action="store_true", help="Set dataset size to medium")
-    group1.add_argument("-x", "--large", action="store_true", help="Set dataset size to large (default)")
+        group1 = parser.add_mutually_exclusive_group()
+        group1.add_argument("-s", "--small", action="store_true", help="Set dataset size to small")
+        group1.add_argument("-m", "--medium", action="store_true", help="Set dataset size to medium")
+        group1.add_argument("-x", "--large", action="store_true", help="Set dataset size to large (default)")
 
-    parser.add_argument("-g", "--sgd", action="store_true", help="Use SGD optimizer instead of Adam")
-    parser.add_argument("-l", "--lr", type=float, help="Set learning rate (default=0.001)", default=0.001)
-    parser.add_argument("-w", "--weight_decay", type=float, help="Set learning rate (default=0.00001)", default=0.00001)
+        parser.add_argument("-c", "--cpu", action="store_true", help="Force to use CPU")
+        parser.add_argument("-g", "--sgd", action="store_true", help="Use SGD optimizer instead of Adam")
+        parser.add_argument("-l", "--lr", type=float, help="Set learning rate (default=0.001)", default=0.001)
+        parser.add_argument("-w", "--weight_decay", type=float, help="Set weight decay (default=0.00001)", default=0.00001)
 
-    group2 = parser.add_mutually_exclusive_group()
-    group2.add_argument("-f", "--file", type=str, help="Read network from file")
-    group2.add_argument("-u", action="store_true", help="Read network from last saved network")
+        group2 = parser.add_mutually_exclusive_group()
+        group2.add_argument("-f", "--file", type=str, help="Read network from file")
+        group2.add_argument("-u", action="store_true", help="Read network from last saved network")
+        group2.add_argument("-n", "--nosave", action="store_true", help="Do not save anything. Including logs and checkpoints")
 
-    args = parser.parse_args()
+        args = parser.parse_args()
 
-    if args.small:
-        data_loader = small_dataset_generator()
-    elif args.medium:
-        data_loader = medium_dataset_generator()
-    elif args.large:
-        data_loader = large_dataset_generator()
-    else:
-        data_loader = None
+        if args.small:
+            data_loader = small_dataset_generator()
+        elif args.medium:
+            data_loader = medium_dataset_generator()
+        elif args.large:
+            data_loader = large_dataset_generator()
+        else:
+            data_loader = None
 
-    wait_until_gpu_is_free()
-    main(args.epochs, data_loader, not args.sgd, args.lr, args.weight_decay, args.u, args.file)
+        wait_until_gpu_is_free()
+        main(args.epochs, data_loader, not args.sgd, args.lr, args.weight_decay, args.u, args.file, args.cpu, args.nosave)
+    except KeyboardInterrupt:
+        print('\n\n<Process Terminated.>')

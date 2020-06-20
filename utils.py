@@ -198,6 +198,7 @@ def _plot_spikes_conv(layer, batch_id=0):
             break
     plt.show()
 
+
 def print_and_plot_accuracy_metrics(network, data_dl_train, data_dl_test, save_plot_path=None):
     plt.close()
     print('\n----------------------------------------')
