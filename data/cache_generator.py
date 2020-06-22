@@ -183,15 +183,14 @@ def cache_data(trail,
     notify('all done')
 
 
-def data_loader(trail, dataset_folder_path, cache_folder_path, condition_limit=None):
+def data_loader(trail, cache_folder_path, condition_limit=None):
     working_proof_mode = False
     has_yield_anything = False
     if trail == 'working_proof':
         trail = 'train'
         working_proof_mode = True
 
-    dataset_path = dataset_folder_path + 'cleaned_cache_' + trail
-    file_list = load_trail_files('trials_to_%s.txt' % trail, dataset_folder_path)
+    file_list = load_trail_files('trials_to_%s.txt' % trail, cache_folder_path)
 
     for counter, f in enumerate(file_list):
         if working_proof_mode and has_yield_anything:

@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from .default_configs import *
+from scnn.default_configs import *
 
 
 class SpikingDenseLayer(torch.nn.Module):

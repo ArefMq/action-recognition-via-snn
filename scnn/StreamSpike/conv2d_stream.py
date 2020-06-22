@@ -1,10 +1,12 @@
+# FIXME: refactor this file
+
 import torch
 import numpy as np
 
-from .default_configs import *
+from scnn.default_configs import *
 
 
-class SpikingConv3DLayer(torch.nn.Module):
+class SpikingConv2DStream(torch.nn.Module):
     IS_CONV = True
     IS_SPIKING = True
     HAS_PARAM = True
@@ -13,9 +15,9 @@ class SpikingConv3DLayer(torch.nn.Module):
                  output_channels=1, kernel_size=3, dilation=1,
                  spike_fn=None, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD, recurrent=False,
                  lateral_connections=True,
-                 eps=EPSILON, stride=(1, 1, 1), flatten_output=False):
+                 eps=EPSILON, stride=(1, 1), flatten_output=False):
 
-        super(SpikingConv3DLayer, self).__init__()
+        super(SpikingConv2DStream, self).__init__()
 
         self.kernel_size = np.array(kernel_size)
         self.dilation = np.array(dilation)
@@ -34,7 +36,8 @@ class SpikingConv3DLayer(torch.nn.Module):
         self.w_init_mean = w_init_mean
         self.w_init_std = w_init_std
 
-        self.w = torch.nn.Parameter(torch.empty((output_channels, input_channels, *kernel_size)), requires_grad=True)
+        self.w = torch.nn.Parameter(torch.empty((output_channels, input_channels, *kernel_size)),
+                                    requires_grad=True)
         if recurrent:
             self.v = torch.nn.Parameter(torch.empty((output_channels, output_channels)), requires_grad=True)
         self.beta = torch.nn.Parameter(torch.empty(1), requires_grad=True)
@@ -42,10 +45,14 @@ class SpikingConv3DLayer(torch.nn.Module):
 
         self.reset_parameters()
         self.clamp()
+        self.training = True
 
+        # Variables
+        self.mem = None
+        self.spk = None
         self.spk_rec_hist = None
         self.mem_rec_hist = None
-        self.training = True
+        self.history_counter = 0
 
     def get_trainable_parameters(self, lr=None, weight_decay=None):
         res = [
@@ -65,7 +72,7 @@ class SpikingConv3DLayer(torch.nn.Module):
 
     def serialize(self):
         return {
-            'type': 'conv3d',
+            'type': 'conv2d_stream',
             'params': {
                 'kernel_size': self.kernel_size,
                 'dilation': self.dilation,
@@ -82,69 +89,71 @@ class SpikingConv3DLayer(torch.nn.Module):
 
     def serialize_to_text(self):
         # FIXME: re-write this
-        return 'C3(' + str(self.output_channels) \
-                     + (',k' if self.kernel_size[0] == 1 else ',K') + str(self.kernel_size[1]) \
-                     + (',l' if self.lateral_connections else '') \
-                     + (',r' if self.recurrent else '') \
-                     + ')'
+        return 'C2.St(' + str(self.output_channels) \
+               + ',k' + str(self.kernel_size[0]) \
+               + (',l' if self.lateral_connections else '') \
+               + (',r' if self.recurrent else '') \
+               + ')'
 
     def forward(self, x):
         batch_size = x.shape[0]
-        nb_steps = x.shape[2]
+        if self.mem is None or self.spk is None:
+            self.reset_mem(batch_size, x.device, x.dtype)
 
         stride = tuple(self.stride)
         padding = tuple(np.ceil(((self.kernel_size - 1) * self.dilation) / 2).astype(int))
-        conv_x = torch.nn.functional.conv3d(x, self.w, padding=padding,
+        conv_x = torch.nn.functional.conv2d(x, self.w, padding=padding,
                                             dilation=tuple(self.dilation),
                                             stride=stride)
-        conv_x = conv_x[:, :, :, :self.output_shape[0], :self.output_shape[1]]
-
-        mem = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x.dtype, device=x.device)
-        spk = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x.dtype, device=x.device)
-
-        spk_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
-        mem_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype)
+        conv_x = conv_x[:, :, :self.output_shape[0], :self.output_shape[1]]
 
         if self.lateral_connections:
             d = torch.einsum("abcde, fbcde -> af", self.w, self.w)
         b = self.b.unsqueeze(1).unsqueeze(1).repeat((1, *self.output_shape))
 
-        norm = (self.w ** 2).sum((1, 2, 3, 4))
+        norm = (self.w ** 2).sum((1, 2, 3))
 
-        for t in range(nb_steps):
-            if self.lateral_connections:
-                rst = torch.einsum("abcd,be ->aecd", spk, d)
-            else:
-                rst = torch.einsum("abcd,b,b->abcd", spk, self.b, norm)
+        if self.lateral_connections:
+            rst = torch.einsum("abcd,be ->aecd", self.spk, d)
+        else:
+            rst = torch.einsum("abcd,b,b->abcd", self.spk, self.b, norm)
 
-            input_ = conv_x[:, :, t, :, :]
-            if self.recurrent:
-                input_ = input_ + torch.einsum("abcd,be->aecd", spk, self.v)
+        if self.recurrent:
+            conv_x = conv_x + torch.einsum("abcd,be->aecd", self.spk, self.v)
 
-            mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
-            mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + self.eps)) - b
-            spk = self.spike_fn(mthr)
+        self.mem = (self.mem - rst) * self.beta + conv_x * (1. - self.beta)
+        mthr = torch.einsum("abcd,b->abcd", self.mem, 1. / (norm + self.eps)) - b
+        self.spk = self.spike_fn(mthr)
 
-            spk_rec[:, :, t, :, :] = spk
-            mem_rec[:, :, t, :, :] = mem.detach().cpu()
-
-        self.spk_rec_hist = spk_rec.detach().cpu().numpy()
-        self.mem_rec_hist = mem_rec.numpy()  # FIXME: do this refactor for other layers as well
+        self.spk_rec_hist[:, :, self.history_counter, :, :] = self.spk.detach().cpu()
+        self.mem_rec_hist[:, :, self.history_counter, :, :] = self.mem.detach().cpu()
+        self.history_counter += 1
+        if self.history_counter >= HISTOGRAM_MEMORY_SIZE:
+            self.history_counter = 0
 
         if self.flatten_output:
-            output = torch.transpose(spk_rec, 1, 2).contiguous()
-            output = output.view(batch_size, nb_steps, self.output_channels * np.prod(self.output_shape))
+            #             output = torch.transpose(self.spk, 1, 2).contiguous()
+            output = self.spk.view(batch_size, self.output_channels * np.prod(self.output_shape))
         else:
-            output = spk_rec
+            output = self.spk
 
         return output
 
+    def reset_mem(self, batch_size, x_device, x_dtype):
+        self.mem = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x_dtype, device=x_device)
+        self.spk = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x_dtype, device=x_device)
+
+        self.spk_rec_hist = torch.zeros(
+            (batch_size, self.output_channels, HISTOGRAM_MEMORY_SIZE, *self.output_shape), dtype=x_dtype)
+        self.mem_rec_hist = torch.zeros(
+            (batch_size, self.output_channels, HISTOGRAM_MEMORY_SIZE, *self.output_shape), dtype=x_dtype)
+
+        self.history_counter = 0
+
     def reset_parameters(self):
-        torch.nn.init.normal_(self.w, mean=self.w_init_mean,
-                              std=self.w_init_std * np.sqrt(1. / (self.input_channels * np.prod(self.kernel_size))))
+        torch.nn.init.normal_(self.w, mean=self.w_init_mean, std=self.w_init_std * np.sqrt(1. / (self.input_channels * np.prod(self.kernel_size))))
         if self.recurrent:
-            torch.nn.init.normal_(self.v, mean=self.w_init_mean,
-                                  std=self.w_init_std * np.sqrt(1. / self.output_channels))
+            torch.nn.init.normal_(self.v, mean=self.w_init_mean, std=self.w_init_std * np.sqrt(1. / self.output_channels))
         torch.nn.init.normal_(self.beta, mean=0.7, std=0.01)
         torch.nn.init.normal_(self.b, mean=1., std=0.01)
 
