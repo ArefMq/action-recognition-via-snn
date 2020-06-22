@@ -13,16 +13,17 @@ class SpikingNeuralNetwork(SpikingNeuralNetworkBase):
         yb = torch.from_numpy(yb.astype(np.long)).to(self.device)
 
         y_pred = self.predict(xb)
-
-        #         print('\n\n')
-        #         print('xb:', xb.shape)
-        #         print('yh:', y_pred.shape)
-        #         print('yb:', yb.shape)
+        #
+        # print('\n\n')
+        # print('xb:', xb.shape)
+        # print('yh:', y_pred.shape)
+        # print('yb:', yb.shape)
 
         log_y_pred = log_softmax_fn(y_pred)
-        #         print('softmax:', log_y_pred.shape)
+        # print('softmax:', log_y_pred.shape)
         loss = loss_func(log_y_pred, yb)
-        #         print('loss', loss.shape)
+        # print('loss', loss.shape)
+        # print('  - ', loss)
 
         if opt is not None:
             loss.backward()
@@ -30,6 +31,12 @@ class SpikingNeuralNetwork(SpikingNeuralNetworkBase):
             opt.step()
             self.clamp()  # TODO: investigate this
             opt.zero_grad()
+
+        for l in self.layers:
+            if 'mem' in l.__dict__:
+                l.mem.detach_()
+            if 'spk' in l.__dict__:
+                l.spk.detach_()
 
         return loss.item(), len(xb)
 
@@ -53,3 +60,8 @@ class SpikingNeuralNetwork(SpikingNeuralNetworkBase):
         else:
             return np.mean(accs)
 
+    def reset_mem(self, batch_size=None):
+        if batch_size is None:
+            batch_size = self.layers[1].mem.shape[0]
+        for l in self.layers:
+            l.reset_mem(batch_size, self.device, self.dtype)

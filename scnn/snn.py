@@ -251,3 +251,6 @@ class SNN(torch.nn.Module):
 
     def set_time_expector(self, te):
         self.network.time_expector = te
+
+    def predict(self, *args, **kwargs):
+        return self.network.predict(*args, **kwargs)
