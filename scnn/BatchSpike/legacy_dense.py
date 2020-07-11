@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 
 from scnn.default_configs import *
 
@@ -45,7 +46,7 @@ class LegacyDense(torch.nn.Module):
     def get_trainable_parameters(self, lr=None, weight_decay=None):
         res = [
             {'params': self.w},
-            {'params': self.beta},
+            # {'params': self.beta},
         ]
 
         if self.recurrent:
@@ -56,6 +57,9 @@ class LegacyDense(torch.nn.Module):
         if weight_decay is not None:
             res[0]['weight_decay'] = weight_decay
         return res
+
+    def serialize_to_text(self):
+        return 'Lgc.D(' + str(self.output_shape) + ('r' if self.recurrent else '') + ')'
 
     def forward(self, x):
         batch_size = x.shape[0]
@@ -87,6 +91,7 @@ class LegacyDense(torch.nn.Module):
 
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
         self.mem_rec_hist = mem_rec.detach().cpu().numpy()
+
         return spk_rec
 
     #         for t in range(nb_steps):
@@ -123,3 +128,24 @@ class LegacyDense(torch.nn.Module):
     def clamp(self):
         pass
 
+    def draw(self, batch_id=0):
+        mem_rec_hist = self.mem_rec_hist[batch_id]
+        for i in range(mem_rec_hist.shape[1]):
+            plt.plot(mem_rec_hist[:, i], label='mem')
+            if i > 30:
+                break
+        plt.xlabel('Time')
+        plt.ylabel('Membrace Potential')
+        plt.show()
+
+        spk_rec_hist = self.spk_rec_hist[batch_id]
+        plt.plot(spk_rec_hist, 'b.')
+        plt.xlabel('Time')
+        plt.ylabel('Spikes')
+        plt.show()
+
+        plt.matshow(spk_rec_hist)
+        plt.xlabel('Neuron')
+        plt.ylabel('Spike Time')
+        plt.axis([-1, spk_rec_hist.shape[1], -1, spk_rec_hist.shape[0]])
+        plt.show()

@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 
 from scnn.default_configs import *
 
@@ -104,3 +105,12 @@ class ReadoutLayer(torch.nn.Module):
         if self.time_reduction == "max":
             self.beta.data.clamp_(0., 1.)
 
+    def draw(self, batch_id=0):
+        mem_rec_hist = self.mem_rec_hist[batch_id]
+        for i in range(mem_rec_hist.shape[1]):
+            plt.plot(mem_rec_hist[:, i], label='mem')
+            if i > 30:
+                break
+        plt.xlabel('Time')
+        plt.ylabel('Membrace Potential')
+        plt.show()

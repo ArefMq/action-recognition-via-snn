@@ -10,7 +10,7 @@ def default_notifier(*msg, **kwargs):
 
 
 class SpikingNeuralNetworkBase(torch.nn.Module):
-    def __init__(self, device=None, dtype=None, time_expector=None, notifier=None, input_layer=None):
+    def __init__(self, save_network_summery_function, write_result_log_function, device=None, dtype=None, time_expector=None, notifier=None, input_layer=None):
         super(SpikingNeuralNetworkBase, self).__init__()
         self.layers = [] if input_layer is None else [input_layer]
         self.time_expector = time_expector
@@ -23,6 +23,21 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
         self.to(device, dtype)
         self.cute_print = False
         self.fp = FunPack()
+        self.save_network_summery = save_network_summery_function
+        self.write_result_log = write_result_log_function
+
+        self.res_metrics = {
+            'train_loss_mean': [],
+            'test_loss_mean': [],
+
+            'train_loss_max': [],
+            'train_loss_min': [],
+            'test_loss_max': [],
+            'test_loss_min': [],
+
+            'train_acc': [],
+            'test_acc': []
+        }
 
     def get_trainable_parameters(self, lr=None, weight_decay=None):
         res = []
@@ -79,18 +94,9 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
             optimizer = torch.optim.SGD(self.get_trainable_parameters(lr), lr=lr, momentum=0.9)
 
         # train code
-        res_metrics = {
-            'train_loss_mean': [],
-            'test_loss_mean': [],
-
-            'train_loss_max': [],
-            'train_loss_min': [],
-            'test_loss_max': [],
-            'test_loss_min': [],
-
-            'train_acc': [],
-            'test_acc': []
-        }
+        for k in self.res_metrics.keys():
+            if len(self.res_metrics[k]):
+                self.res_metrics[k].append(0)
 
         if result_file is not None:
             result_file.write('New Run\n------------------------------\n')
@@ -111,8 +117,8 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
                 self.reset_timer()
                 losses.append(l)
                 nums.append(n)
-            res_metrics['train_loss_max'].append(np.max(losses))
-            res_metrics['train_loss_min'].append(np.min(losses))
+            self.res_metrics['train_loss_max'].append(np.max(losses))
+            self.res_metrics['train_loss_min'].append(np.min(losses))
             train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
             # evaluate
@@ -128,19 +134,19 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
                     self.reset_timer()
                     losses.append(l)
                     nums.append(n)
-            res_metrics['test_loss_max'].append(np.max(losses))
-            res_metrics['test_loss_min'].append(np.min(losses))
+            self.res_metrics['test_loss_max'].append(np.max(losses))
+            self.res_metrics['test_loss_min'].append(np.min(losses))
             val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
             # finishing up
             self.print_progress(epoch, epochs, dataset_counter, dataset_size, finished=True)
-            res_metrics['train_loss_mean'].append(train_loss)
-            res_metrics['test_loss_mean'].append(val_loss)
+            self.res_metrics['train_loss_mean'].append(train_loss)
+            self.res_metrics['test_loss_mean'].append(val_loss)
 
             train_accuracy = self.compute_classification_accuracy(data_loader('acc_train'), False)
             valid_accuracy = self.compute_classification_accuracy(data_loader('acc_test'), False)
-            res_metrics['train_acc'].append(train_accuracy)
-            res_metrics['test_acc'].append(valid_accuracy)
+            self.res_metrics['train_acc'].append(train_accuracy)
+            self.res_metrics['test_acc'].append(valid_accuracy)
 
             print('')
             print('| Lss.Trn | Lss.Tst | Acc.Trn | Acc.Tst |')
@@ -157,13 +163,14 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
             self.notifier('epoch %d ended (acc=%.2f ~ %.2f)' % (epoch, train_accuracy, valid_accuracy), print_in_console=False)
 
         self.notifier('Done', mark='ok', print_in_console=False)
-        return res_metrics
+        return self.res_metrics
 
     def reset_timer(self):
         if self.time_expector is not None:
             self.time_expector.tock()
 
     def print_progress(self, epoch, epoch_count, dataset_counter, dataset_size, test=False, finished=False):
+        dataset_counter *= 1.
         d_size = dataset_size[1] if test else dataset_size[0]
         iter_per_epoch = dataset_size[0] + dataset_size[1]
         d_left = iter_per_epoch - dataset_counter
@@ -179,7 +186,7 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
             expectation = ''
 
         self._print_progress('Epoch: %d' % (epoch + 1),
-                             dataset_counter / d_size,
+                             dataset_counter / d_size if not finished else 1.,
                              a='=' if test or finished else '-',
                              c='-' if test or finished else '.',
                              expectation=expectation,
@@ -187,19 +194,19 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
 
         if finished:
             if self.cute_print:
-                self.fp.init_fp()
+                self.fp.init_fp(42)
             print('')
 
     @staticmethod
     def _print_progress(msg, value, width=60, a='=', b='>', c='.', expectation='', funny_func=None, reverse=False):
         if funny_func is not None:
             reverse = True
-            width /= 2
+            width *= .7
 
         progress_text = '%s%s%s' % (
             (a * int((value - 0.001) * width)) if not reverse else (c * int((1. - value) * width)),
             b,
-            (c * int((1. - value) * width)) if not reverse else (a * int((value - 0.001) * width))
+            (c * int((1. - value) * width)) if not reverse else (a * int((value - 0.0000001) * width))
         )
 
         if funny_func is not None:
@@ -213,3 +220,11 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
         )
 
         print(output, end='')
+
+    def plot_one_batch(self, x_batch, y_batch=None, batch_id=0):
+        self.predict(x_batch)
+
+        for i, l in enumerate(self.layers):
+            if 'spk_rec_hist' in l.__dict__:
+                print("Layer {}: average number of spikes={:.4f}".format(i, l.spk_rec_hist.mean()))
+            l.draw(batch_id)

@@ -65,7 +65,10 @@ class SpikingPool2DLayer(torch.nn.Module):
         else:
             output = spk_rec
 
-        return output#, 0
+        return output
 
     def clamp(self):
+        pass
+
+    def draw(self, *kwargs):
         pass

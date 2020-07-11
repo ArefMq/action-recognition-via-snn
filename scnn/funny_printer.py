@@ -1,4 +1,5 @@
-from random import choice
+from random import choice, random
+from math import fabs
 
 EMOJI_PACK = {
     'foot_slow': [
@@ -168,7 +169,7 @@ EMOJI_PACK = {
         '🏩',
         '💒',
         '🏛',
-        '⛪️'
+        '⛪️',
         '🕌',
         '🕍',
     ],
@@ -281,16 +282,33 @@ RELATIONS = [
     {'race': ['race']},
 ]
 
-FUN_PATTERN = list('     x       x      y        x           x                     y       x         x')
-
 
 class FunPack:
     def __init__(self):
         self.fu = None
         self.fp = None
+        self.pattern_a = 0
         self.init_fp()
 
-    def init_fp(self):
+    @staticmethod
+    def gamma(x, z):
+        return z / (z + fabs(x))
+
+    def r(self, i, c):
+        if self.pattern_a > 0:
+            self.pattern_a -= 1
+            return ' '
+
+        if i < self.gamma(c, 0.2):
+            self.pattern_a = 3
+            return 'y'
+
+        if i < self.gamma(c, 0.6):
+            self.pattern_a = 2
+            return 'x'
+        return ' '
+
+    def init_fp(self, l=40):
         r = choice(RELATIONS)
         c = choice(list(r.values())[0])
         r = list(r.keys())[0]
@@ -301,7 +319,9 @@ class FunPack:
             '>': choice(EMOJI_PACK[r + '_slow']),
             '>>': choice(EMOJI_PACK[r + '_fast'])
         }
-        self.fp = list(''.join(FUN_PATTERN).replace('x', self.fu['x']).replace('y', self.fu['y']))
+
+        fun_pattern = ''.join([self.r(random(), c-l/2) for c in range(l)])
+        self.fp = list(''.join(fun_pattern).replace('x', self.fu['x']).replace('y', self.fu['y']))
 
     def funnify(self, i, c, p):
 
@@ -311,6 +331,8 @@ class FunPack:
             x = self.fp[i % lfp]
             if x == ' ' and c == '-':
                 return '.'
+            elif x == ' ' and c == '=':
+                return '-'
             else:
                 return x
         if c == '>':

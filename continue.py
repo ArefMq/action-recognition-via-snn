@@ -21,16 +21,14 @@ time_expector = TimeExpector()
 
 # configurations
 batch_size = 16
-nb_frame = 40
-CACHE_FOLDER_PATH = "/home/aref/dataset/dvs-dataset"
-DATASET_FOLDER_PATH = "/home/aref/dataset/dvs-dataset"
+nb_frame = 30
+CACHE_FOLDER_PATH = "storage/dvs/cache"
 
 
 def small_dataset_generator():
     original_size = 128
     for __xb, __yb in batchify(
             'train',
-            DATASET_FOLDER_PATH,
             CACHE_FOLDER_PATH,
             condition_limit=['natural'],
             batch_size=original_size,
@@ -71,7 +69,6 @@ def medium_dataset_generator():
     original_size = 2048
     for __xb, __yb in batchify(
             'train',
-            DATASET_FOLDER_PATH,
             CACHE_FOLDER_PATH,
             condition_limit=['natural'],
             batch_size=original_size,
@@ -121,7 +118,6 @@ def large_dataset_generator():
         trail = trail.replace('acc_', '')
         return batchify(
             trail,
-            DATASET_FOLDER_PATH,
             CACHE_FOLDER_PATH,
             condition_limit=['natural'],
             batch_size=batch_size,

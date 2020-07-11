@@ -34,11 +34,19 @@ def default_notifier(*msg, **kwargs):
 class SNN(torch.nn.Module):
     def __init__(self, *args, **kwargs):
         super(SNN, self).__init__()
+        custom_network = kwargs.pop('custom_network', None)
         self.stream_network = kwargs.pop('stream_network', False)
-        spike_fn = kwargs.pop('stream_network', None)
-        self.default_spike_fn = spike_fn if spike_fn is not None else SurrogateHeaviside.apply
+        spike_fn = kwargs.pop('spike_fn', None)
 
-        if self.stream_network:
+        self.default_spike_fn = spike_fn if spike_fn is not None else SurrogateHeaviside.apply
+        kwargs['save_network_summery_function'] = self.save_network_summery
+        kwargs['write_result_log_function'] = self.write_result_log
+
+        if custom_network and self.stream_network:
+            raise Exception('can not select two type of network at the same time.')
+        elif custom_network:
+            self.network = custom_network(*args, **kwargs)
+        elif self.stream_network:
             self.network = StreamNetwork(*args, **kwargs)
         else:
             self.network = BatchNetwork(*args, **kwargs)
@@ -190,7 +198,7 @@ class SNN(torch.nn.Module):
         for p in network_ser['network']:
 
             if p['type'] == 'readin':
-                self.layers.append(ReadInLayer(**p['params']))
+                self.network.layers.append(ReadInLayer(**p['params']))
             elif p['type'] == 'conv1d':
                 self.add_conv1d(**p['params'])
             elif p['type'] == 'conv2d':
@@ -207,7 +215,7 @@ class SNN(torch.nn.Module):
 
     def serialize(self):
         res = []
-        for l in self.layers:
+        for l in self.network.layers:
             res.append(l.serialize())
         return {'time': time(), 'network': res}
 
@@ -254,3 +262,9 @@ class SNN(torch.nn.Module):
 
     def predict(self, *args, **kwargs):
         return self.network.predict(*args, **kwargs)
+
+    def plot_one_batch(self, *args, **kwargs):
+        return self.network.plot_one_batch(*args, **kwargs)
+
+    def compute_classification_accuracy(self, *args, **kwargs):
+        return self.network.compute_classification_accuracy(*args, **kwargs)

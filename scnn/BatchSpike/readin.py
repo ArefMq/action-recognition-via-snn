@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-
+import matplotlib.pyplot as plt
 
 class ReadInLayer(torch.nn.Module):
     IS_CONV = True
@@ -17,6 +17,7 @@ class ReadInLayer(torch.nn.Module):
         self.output_channels = output_channels if output_channels is not None else input_channels
 
         self.flatten_output = flatten_output
+        self.spk_rec_hist = None
 
     def get_trainable_parameters(self, lr=None, weight_decay=None):
         return []
@@ -38,9 +39,12 @@ class ReadInLayer(torch.nn.Module):
         nb_steps = x.shape[1]
 
         if self.flatten_output:
-            return x.view(batch_size, nb_steps, self.output_channels * np.prod(self.output_shape))
+            x = x.view(batch_size, nb_steps, self.output_channels * np.prod(self.output_shape))
         else:
-            return x.view(batch_size, self.output_channels, nb_steps, *self.output_shape)
+            x = x.view(batch_size, self.output_channels, nb_steps, *self.output_shape)
+
+        self.spk_rec_hist = x.detach().cpu().numpy()
+        return x
 
     def reset_parameters(self):
         pass
@@ -48,3 +52,5 @@ class ReadInLayer(torch.nn.Module):
     def clamp(self):
         pass
 
+    def draw(self, *kwargs):
+        pass
