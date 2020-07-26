@@ -12,7 +12,7 @@ class SpikingConv3DLayer(torch.nn.Module):
     def __init__(self, input_shape, input_channels, output_shape=None,
                  output_channels=1, kernel_size=3, dilation=1,
                  spike_fn=None, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD, recurrent=False,
-                 lateral_connections=True,
+                 lateral_connections=False,
                  eps=EPSILON, stride=(1, 1, 1), flatten_output=False):
 
         super(SpikingConv3DLayer, self).__init__()

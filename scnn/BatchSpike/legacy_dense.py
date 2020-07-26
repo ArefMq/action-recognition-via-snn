@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -11,7 +12,7 @@ class LegacyDense(torch.nn.Module):
     HAS_PARAM = True
 
     def __init__(self, input_shape, output_shape, spike_fn, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD,
-                 recurrent=False, lateral_connections=True, eps=EPSILON):
+                 recurrent=False, lateral_connections=False, eps=EPSILON, dropout_prop=None):
         super(LegacyDense, self).__init__()
 
         self.input_shape = input_shape
@@ -35,7 +36,8 @@ class LegacyDense(torch.nn.Module):
         self._alpha = float(np.exp(-time_step / tau_syn))
         self._beta = float(np.exp(-time_step / tau_mem))
 
-        self.b = torch.nn.Parameter(torch.empty(output_shape), requires_grad=True)
+        # self.b = torch.nn.Parameter(torch.empty(output_shape), requires_grad=True)
+        self.dropout = None if dropout_prop is None else nn.Dropout(dropout_prop)
 
         self.reset_parameters()
         self.clamp()
@@ -92,7 +94,10 @@ class LegacyDense(torch.nn.Module):
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
         self.mem_rec_hist = mem_rec.detach().cpu().numpy()
 
-        return spk_rec
+        if self.dropout:
+            return self.dropout(spk_rec)
+        else:
+            return spk_rec
 
     #         for t in range(nb_steps):
     #             # reset term
@@ -144,7 +149,7 @@ class LegacyDense(torch.nn.Module):
         plt.ylabel('Spikes')
         plt.show()
 
-        plt.matshow(spk_rec_hist)
+        plt.matshow(spk_rec_hist, origin="upper", aspect='auto')
         plt.xlabel('Neuron')
         plt.ylabel('Spike Time')
         plt.axis([-1, spk_rec_hist.shape[1], -1, spk_rec_hist.shape[0]])

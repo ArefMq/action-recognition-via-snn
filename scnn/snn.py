@@ -41,6 +41,7 @@ class SNN(torch.nn.Module):
         self.default_spike_fn = spike_fn if spike_fn is not None else SurrogateHeaviside.apply
         kwargs['save_network_summery_function'] = self.save_network_summery
         kwargs['write_result_log_function'] = self.write_result_log
+        kwargs['save_checkpoint_function'] = self.save_checkpoint
 
         if custom_network and self.stream_network:
             raise Exception('can not select two type of network at the same time.')

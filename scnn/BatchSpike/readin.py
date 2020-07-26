@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 class ReadInLayer(torch.nn.Module):
     IS_CONV = True
     IS_SPIKING = False
@@ -17,7 +18,7 @@ class ReadInLayer(torch.nn.Module):
         self.output_channels = output_channels if output_channels is not None else input_channels
 
         self.flatten_output = flatten_output
-        self.spk_rec_hist = None
+        self.spk_rec_hist = Nones
 
     def get_trainable_parameters(self, lr=None, weight_decay=None):
         return []

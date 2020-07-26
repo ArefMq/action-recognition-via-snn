@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 from scnn.default_configs import *
@@ -10,7 +11,7 @@ class SpikingDenseLayer(torch.nn.Module):
     HAS_PARAM = True
 
     def __init__(self, input_shape, output_shape, spike_fn, w_init_mean=W_INIT_MEAN, w_init_std=W_INIT_STD,
-                 recurrent=False, lateral_connections=True, eps=EPSILON):
+                 recurrent=False, lateral_connections=False, eps=EPSILON, dropout_prop=None):
         super(SpikingDenseLayer, self).__init__()
 
         self.input_shape = input_shape
@@ -29,6 +30,8 @@ class SpikingDenseLayer(torch.nn.Module):
 
         self.beta = torch.nn.Parameter(torch.empty(1), requires_grad=True)
         self.b = torch.nn.Parameter(torch.empty(output_shape), requires_grad=True)
+
+        self.dropout = None if dropout_prop is None else nn.Dropout(dropout_prop)
 
         self.reset_parameters()
         self.clamp()
@@ -108,7 +111,11 @@ class SpikingDenseLayer(torch.nn.Module):
             # save spk_rec for plotting
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()
         self.mem_rec_hist = self.mem_rec_hist.numpy()
-        return spk_rec
+
+        if self.dropout:
+            return self.dropout(spk_rec)
+        else:
+            return spk_rec
 
     def reset_parameters(self):
         torch.nn.init.normal_(self.w, mean=self.w_init_mean, std=self.w_init_std * np.sqrt(1. / self.input_shape))
@@ -137,7 +144,7 @@ class SpikingDenseLayer(torch.nn.Module):
         plt.ylabel('Spikes')
         plt.show()
 
-        plt.matshow(spk_rec_hist)
+        plt.matshow(spk_rec_hist, origin="upper", aspect='auto')
         plt.xlabel('Neuron')
         plt.ylabel('Spike Time')
         plt.axis([-1, spk_rec_hist.shape[1], -1, spk_rec_hist.shape[0]])

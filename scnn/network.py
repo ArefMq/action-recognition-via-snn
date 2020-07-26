@@ -10,7 +10,7 @@ def default_notifier(*msg, **kwargs):
 
 
 class SpikingNeuralNetworkBase(torch.nn.Module):
-    def __init__(self, save_network_summery_function, write_result_log_function, device=None, dtype=None, time_expector=None, notifier=None, input_layer=None):
+    def __init__(self, save_network_summery_function, write_result_log_function, save_checkpoint_function, device=None, dtype=None, time_expector=None, notifier=None, input_layer=None):
         super(SpikingNeuralNetworkBase, self).__init__()
         self.layers = [] if input_layer is None else [input_layer]
         self.time_expector = time_expector
@@ -25,6 +25,7 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
         self.fp = FunPack()
         self.save_network_summery = save_network_summery_function
         self.write_result_log = write_result_log_function
+        self.save_checkpoint = save_checkpoint_function
 
         self.res_metrics = {
             'train_loss_mean': [],
