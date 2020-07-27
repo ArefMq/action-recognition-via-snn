@@ -18,7 +18,7 @@ class ReadInLayer(torch.nn.Module):
         self.output_channels = output_channels if output_channels is not None else input_channels
 
         self.flatten_output = flatten_output
-        self.spk_rec_hist = Nones
+        self.spk_rec_hist = None
 
     def get_trainable_parameters(self, lr=None, weight_decay=None):
         return []

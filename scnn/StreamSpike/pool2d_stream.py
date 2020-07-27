@@ -1,55 +1,20 @@
 import torch
 import numpy as np
 
-from scnn.default_configs import *
+from scnn.Spike.pool2d import SpikingPool2DLayer
 
 
-class SpikingPool2DStream(torch.nn.Module):
-    IS_CONV = True
-    IS_SPIKING = False
-    HAS_PARAM = False
-
-    def __init__(self, input_shape, input_channels, kernel_size=(2, 2), stride=None,
-                 output_shape=None, output_channels=None, flatten_output=False):
-
-        super(SpikingPool2DStream, self).__init__()
-
-        if output_channels is None:
-            output_channels = input_channels
-        if stride is None:
-            stride = kernel_size
-
-        if output_shape is None:
-            output_shape = [int(1 + (i - k) / s) for i, k, s in zip(input_shape, kernel_size, stride)]
-
-        self.kernel_size = np.array(kernel_size)
-        self.stride = np.array(stride)
-        self.input_channels = input_channels
-        self.output_channels = output_channels
-        self.input_shape = input_shape
-        self.output_shape = output_shape
-
-        self.flatten_output = flatten_output
-        self.spk_rec_hist = None
+class SpikingPool2DStream(SpikingPool2DLayer):
+    def __init__(self, *args, **kwargs):
+        super(SpikingPool2DStream, self).__init__(*args, **kwargs)
+        self.histogram_memory_size = kwargs.get('histogram_memory_size', 50)
         self.history_counter = 0
 
-    def get_trainable_parameters(self, lr=None, weight_decay=None):
-        return []
-
-    def serialize(self):
-        return {
-            'type': 'pool2d_stream',
-            'params': {
-                'kernel_size': self.kernel_size,
-                'stride': self.stride
-            }
-        }
-
-    def serialize_to_text(self):
+    def __str__(self):
         # FIXME: handle other variations
         return 'P.St(' + str(self.kernel_size[0]) + ')'
 
-    def forward(self, x):
+    def forward_function(self, x):
         batch_size = x.shape[0]
         if self.spk_rec_hist is None:
             self.reset_mem(batch_size, x.device, x.dtype)
@@ -59,7 +24,7 @@ class SpikingPool2DStream(torch.nn.Module):
 
         self.spk_rec_hist[:, :, self.history_counter, :, :] = pool_x_t.detach().cpu()
         self.history_counter += 1
-        if self.history_counter >= HISTOGRAM_MEMORY_SIZE:
+        if self.history_counter >= self.histogram_memory_size:
             self.history_counter = 0
 
         if self.flatten_output:
@@ -72,8 +37,5 @@ class SpikingPool2DStream(torch.nn.Module):
 
     def reset_mem(self, batch_size, x_device, x_dtype):
         self.spk_rec_hist = torch.zeros(
-            (batch_size, self.output_channels, HISTOGRAM_MEMORY_SIZE, *self.output_shape), dtype=x_dtype)
+            (batch_size, self.output_channels, self.histogram_memory_size, *self.output_shape), dtype=x_dtype)
         self.history_counter = 0
-
-    def clamp(self):
-        pass

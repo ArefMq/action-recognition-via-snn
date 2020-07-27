@@ -46,8 +46,13 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
             res.extend(l.get_trainable_parameters(lr=lr, weight_decay=weight_decay))
         return res
 
+    def init(self):
+        self.reset_parameters()
+        self.clamp()
+
     def compile(self):
         self.layers = torch.nn.ModuleList(self.layers)
+        self.init()
 
     def predict(self, x):
         if isinstance(x, np.ndarray):
