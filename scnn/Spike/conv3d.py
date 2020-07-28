@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
 from scnn.Spike.conv2d import SpikingConv2DLayer
+from scnn.default_configs import *
 
 
 class SpikingConv3DLayer(SpikingConv2DLayer):
@@ -64,7 +65,7 @@ class SpikingConv3DLayer(SpikingConv2DLayer):
                 input_ = input_ + torch.einsum("abcd,be->aecd", spk, self.v)
 
             mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
-            mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + self.eps)) - b
+            mthr = torch.einsum("abcd,b->abcd", mem, 1. / (norm + EPSILON)) - b
             spk = self.spike_fn(mthr)
 
             spk_rec[:, :, t, :, :] = spk

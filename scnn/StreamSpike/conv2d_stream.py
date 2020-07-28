@@ -2,6 +2,7 @@ import torch
 import numpy as np
 
 from scnn.StreamSpike.conv1d_stream import SpikingConv1DStream
+from scnn.default_configs import *
 
 
 class SpikingConv2DStream(SpikingConv1DStream):
@@ -43,7 +44,7 @@ class SpikingConv2DStream(SpikingConv1DStream):
             conv_x = conv_x + torch.einsum("abcd,be->aecd", self.spk, self.v)
 
         self.mem = (self.mem - rst) * self.beta + conv_x * (1. - self.beta)
-        mthr = torch.einsum("abcd,b->abcd", self.mem, 1. / (norm + self.eps)) - b
+        mthr = torch.einsum("abcd,b->abcd", self.mem, 1. / (norm + EPSILON)) - b
         self.spk = self.spike_fn(mthr)
 
         self.spk_rec_hist[:, :, self.history_counter, :, :] = self.spk.detach().cpu()

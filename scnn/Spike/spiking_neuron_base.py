@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import numpy as np
 
@@ -15,9 +16,9 @@ class SpikingNeuronBase(torch.nn.Module):
         dropout_prop = kwargs.get('dropout_prop', None)
         self.dropout = None if dropout_prop is None else nn.Dropout(dropout_prop)
 
-        self.kernel_size = np.array(kwargs.get('kernel_size', None))
-        self.dilation = np.array(kwargs.get('dilation', None))
-        self.stride = np.array(kwargs.get('stride', None))
+        self.kernel_size = kwargs.get('kernel_size', None)
+        self.dilation = kwargs.get('dilation', None)
+        self.stride = kwargs.get('stride', None)
         self.input_channels = kwargs.get('input_channels', None)
         self.input_shape = kwargs.get('input_shape', None)
 
@@ -30,6 +31,13 @@ class SpikingNeuronBase(torch.nn.Module):
         self.flatten_output = kwargs.get('flatten_output', False)
         self.w_init_mean = kwargs.get('w_init_mean', W_INIT_MEAN)
         self.w_init_std = kwargs.get('w_init_std', W_INIT_STD)
+
+        if self.kernel_size is not None and not isinstance(self.kernel_size, np.ndarray):
+            self.kernel_size = np.array(self.kernel_size)
+        if self.dilation is not None and not isinstance(self.dilation, np.ndarray):
+            self.dilation = np.array(self.dilation)
+        if self.stride is not None and not isinstance(self.stride, np.ndarray):
+            self.stride = np.array(self.stride)
 
         self.spk_rec_hist = None
         self.mem_rec_hist = None
@@ -74,6 +82,8 @@ class SpikingNeuronBase(torch.nn.Module):
 
     def get_trainable_parameters(self, lr=None, weight_decay=None):
         res = [{'params': p} for p in self.trainable()]
+        if not res:
+            return res
 
         if lr is not None:
             for r in res:

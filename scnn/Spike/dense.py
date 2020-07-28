@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from scnn.Spike.spiking_neuron_base import SpikingNeuronBase
+from scnn.default_configs import *
 
 
 class SpikingDenseLayer(SpikingNeuronBase):
@@ -60,7 +61,7 @@ class SpikingDenseLayer(SpikingNeuronBase):
                 input_ = input_ + torch.einsum("ab,bc->ac", spk, self.v)
 
             mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
-            mthr = torch.einsum("ab,b->ab", mem, 1. / (norm + self.eps)) - self.b
+            mthr = torch.einsum("ab,b->ab", mem, 1. / (norm + EPSILON)) - self.b
             spk = self.spike_fn(mthr)
 
             spk_rec[:, t, :] = spk

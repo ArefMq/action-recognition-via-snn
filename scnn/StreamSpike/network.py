@@ -13,17 +13,8 @@ class SpikingNeuralNetwork(SpikingNeuralNetworkBase):
         yb = torch.from_numpy(yb.astype(np.long)).to(self.device)
 
         y_pred = self.predict(xb)
-        #
-        # print('\n\n')
-        # print('xb:', xb.shape)
-        # print('yh:', y_pred.shape)
-        # print('yb:', yb.shape)
-
         log_y_pred = log_softmax_fn(y_pred)
-        # print('softmax:', log_y_pred.shape)
         loss = loss_func(log_y_pred, yb)
-        # print('loss', loss.shape)
-        # print('  - ', loss)
 
         if opt is not None:
             loss.backward()

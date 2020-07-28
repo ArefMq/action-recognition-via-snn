@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
 from scnn.Spike.conv1d import SpikingConv1DLayer
+from scnn.default_configs import *
 
 
 class SpikingConv2DLayer(SpikingConv1DLayer):
@@ -62,7 +63,7 @@ class SpikingConv2DLayer(SpikingConv1DLayer):
 
             # membrane potential update
             mem = (mem - rst) * self.beta + input_ * (1. - self.beta)
-            mthr = torch.einsum("abc,b->abc", mem, 1. / (norm + self.eps)) - b
+            mthr = torch.einsum("abc,b->abc", mem, 1. / (norm + EPSILON)) - b
 
             spk = self.spike_fn(mthr)
 

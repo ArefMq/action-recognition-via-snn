@@ -2,6 +2,7 @@ import torch
 import numpy as np
 
 from scnn.Spike.dense import SpikingDenseLayer
+from scnn.default_configs import *
 
 
 class SpikingDenseStream(SpikingDenseLayer):
@@ -39,7 +40,7 @@ class SpikingDenseStream(SpikingDenseLayer):
             h = h + torch.einsum("ab,bc->ac", self.spk, self.v)
 
         self.mem = (self.mem - rst) * self.beta + h * (1. - self.beta)
-        mthr = torch.einsum("ab,b->ab", self.mem, 1. / (norm + self.eps)) - self.b
+        mthr = torch.einsum("ab,b->ab", self.mem, 1. / (norm + EPSILON)) - self.b
         self.spk = self.spike_fn(mthr)
 
         self.spk_rec_hist[:, self.history_counter, :] = self.spk.detach().cpu()

@@ -10,10 +10,11 @@ class ReadInLayer(SpikingNeuronBase):
 
     def __init__(self, *args, **kwargs):
         super(ReadInLayer, self).__init__(*args, **kwargs)
-
+        if self.input_channels is None:
+            self.input_channels = 1
         if self.output_shape is None:
             self.output_shape = self.input_shape
-        if self.output_channels:
+        if self.output_channels is None:
             self.output_channels = self.input_channels
 
     def __str__(self):

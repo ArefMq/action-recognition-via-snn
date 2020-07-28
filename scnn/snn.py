@@ -9,14 +9,14 @@ from os import walk
 
 from .heaviside import SurrogateHeaviside
 
-from .BatchSpike.network import SpikingNeuralNetwork as BatchNetwork
-from .BatchSpike.conv1d import SpikingConv1DLayer
-from .BatchSpike.conv2d import SpikingConv2DLayer
-from .BatchSpike.conv3d import SpikingConv3DLayer
-from .BatchSpike.pool2d import SpikingPool2DLayer
-from .BatchSpike.dense import SpikingDenseLayer
-from .BatchSpike.readout import ReadoutLayer
-from .BatchSpike.readin import ReadInLayer
+from .Spike.network import SpikingNeuralNetwork as BatchNetwork
+from .Spike.conv1d import SpikingConv1DLayer
+from .Spike.conv2d import SpikingConv2DLayer
+from .Spike.conv3d import SpikingConv3DLayer
+from .Spike.pool2d import SpikingPool2DLayer
+from .Spike.dense import SpikingDenseLayer
+from .Spike.readout import ReadoutLayer
+from .Spike.readin import ReadInLayer
 
 from .StreamSpike.network import SpikingNeuralNetwork as StreamNetwork
 from .StreamSpike.conv2d_stream import SpikingConv2DStream
@@ -77,7 +77,7 @@ class SNN(torch.nn.Module):
     def add_layer(self, layer, **kwargs):
         if not self.network.layers:
             input_shape = kwargs.pop('input_shape')
-            self.network.layers.append(ReadInStream(input_shape) if self.stream_network else ReadInLayer(input_shape))
+            self.network.layers.append(ReadInStream(input_shape=input_shape) if self.stream_network else ReadInLayer(input_shape=input_shape))
 
         if layer.IS_SPIKING and self.default_spike_fn is not None and 'spike_fn' not in kwargs:
             kwargs['spike_fn'] = self.default_spike_fn
@@ -187,12 +187,12 @@ class SNN(torch.nn.Module):
         else:
             return j
 
-    def serialize_to_text(self):
+    def __str__(self):
         res = ''
         for l in self.network.layers:
             if res != '':
                 res += ' => '
-            res += l.serialize_to_text()
+            res += l.__str__()
         return res
 
     def deserialize(self, network_ser):

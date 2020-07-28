@@ -231,6 +231,6 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
         self.predict(x_batch)
 
         for i, l in enumerate(self.layers):
-            if 'spk_rec_hist' in l.__dict__:
+            if 'spk_rec_hist' in l.__dict__ and l.spk_rec_hist is not None:
                 print("Layer {}: average number of spikes={:.4f}".format(i, l.spk_rec_hist.mean()))
             l.draw(batch_id)
