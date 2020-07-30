@@ -277,5 +277,13 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
-
+.idea
 # End of https://www.gitignore.io/api/linux,macos,python,pycharm,windows,jupyternotebooks
+
+*.log
+
+checkpoints
+logs
+storage
+results
+papers
