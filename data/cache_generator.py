@@ -89,8 +89,8 @@ def serialize_events(x_data, y_data, ev_times, image_reduce_factor, frame_length
         desired_width = ORIGINAL_IMAGE_WIDTH / image_reduce_factor
         desired_height = ORIGINAL_IMAGE_HEIGHT / image_reduce_factor
 
-        retina = np.zeros([desired_width, desired_height])
-        retina[event_x[:, 1] / image_reduce_factor, event_x[:, 0] / image_reduce_factor] = 1
+        retina = np.zeros([int(desired_width), int(desired_height)])
+        retina[(event_x[:, 1] / image_reduce_factor).astype(int), (event_x[:, 0] / image_reduce_factor).astype(int)] = 2 * event_x[:, 2] - 1
 
         frame_y = np.round(np.mean(event_y))
         current_time += frame_length_us
@@ -129,20 +129,19 @@ def read_and_process_file(file_name, trail, counter, image_reduce_factor, frame_
         event_label = get_label(event_labels, event_corrected_time)
 
         # append event
-        ev = (e['x'], e['y'])
+        ev = (e['x'], e['y'], e['polarity'])
         ev_x.append(ev)
         ev_y.append(event_label)
         ev_z.append(e['timestamp'])
 
     print('---> processing file...')
-    x_train, y_train = serialize_events(np.array(ev_x), np.array(ev_y), np.array(ev_z), image_reduce_factor,
-                                        frame_length_us)
+    x_train, y_train = serialize_events(np.array(ev_x), np.array(ev_y), np.array(ev_z), image_reduce_factor, frame_length_us)
 
     print('---> saving file...')
     x_train = np.array(x_train, dtype='uint8')
     y_train = np.array(y_train, dtype='uint8')
-    np.save(file="%s_%s/x_%s_%d" % (output_data_path, trail, trail, counter), arr=x_train)
-    np.save(file="%s_%s/y_%s_%d" % (output_data_path, trail, trail, counter), arr=y_train)
+    np.save(file="%s/x_%s_%d" % (output_data_path, trail, counter), arr=x_train)
+    np.save(file="%s/y_%s_%d" % (output_data_path, trail, counter), arr=y_train)
 
 
 #     return x_train, y_train
@@ -156,7 +155,7 @@ def download_dataset(dataset_folder_path):
 def cache_data(trail,
                dataset_folder_path,
                output_data_path,
-               image_reduce_factor=2,
+               image_reduce_factor=1,
                frame_length_us=9900,  # almost the same delay in each frame in the DVS data
                ):
     t = TimeExpector()
@@ -167,19 +166,17 @@ def cache_data(trail,
 
     if not os.path.exists(output_data_path):
         os.mkdir(output_data_path)
-
-    if trail == 'train':
-        file_list = load_trail_files('trials_to_train.txt', dataset_folder_path)
-    elif trail == 'test':
-        file_list = load_trail_files('trials_to_test.txt', dataset_folder_path)
+    file_list = load_trail_files('trials_to_%s.txt' % trail, dataset_folder_path)
 
     counter = 0
     for file_name_set in file_list:
-        t.tick(iteration_left=len(file_list) - counter)
+        t.tick()
         counter += 1
         print('     ------------------------- %d out of %d -------------------------' % (counter, len(file_list)))
         read_and_process_file(file_name_set, trail, counter, image_reduce_factor, frame_length_us, output_data_path)
-        notify('chunk done: %d / %d' % (counter, len(file_list)))
+        t.tock()
+        t_exp = t.expectation(len(file_list) - counter, 0, 0)
+        notify('chunk done: %d / %d - ETA: %s' % (counter, len(file_list), t_exp))
     notify('all done')
 
 

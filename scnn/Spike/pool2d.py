@@ -10,6 +10,11 @@ class SpikingPool2DLayer(SpikingNeuronBase):
     HAS_PARAM = False
 
     def __init__(self, *args, **kwargs):
+        if 'name' not in kwargs:
+            kwargs['name'] = kwargs.get('reduction') + 'Pool2D'
+        if 'kernel_size' not in kwargs:
+            kwargs['kernel_size'] = (2, 2)
+
         super(SpikingPool2DLayer, self).__init__(*args, **kwargs)
 
         if self.output_channels is None:
@@ -21,6 +26,8 @@ class SpikingPool2DLayer(SpikingNeuronBase):
         if self.output_shape is None:
             self.output_shape = [int(1+(i-k)/s) for i, k, s in zip(self.input_shape, self.kernel_size, self.stride)]
 
+        self.reduction = kwargs.get('reduction', 'max')
+
     def __str__(self):
         # FIXME: handle other variations
         return 'P(' + str(self.kernel_size[0]) + ')'
@@ -31,7 +38,12 @@ class SpikingPool2DLayer(SpikingNeuronBase):
         spk_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
 
         for t in range(nb_steps):
-            pool_x_t = torch.nn.functional.max_pool2d(x[:, :, t, :, :], kernel_size=tuple(self.kernel_size), stride=tuple(self.stride))
+            if self.reduction == 'max':
+                pool_x_t = torch.nn.functional.max_pool2d(x[:, :, t, :, :], kernel_size=tuple(self.kernel_size), stride=tuple(self.stride))
+            elif self.reduction == 'avg':
+                pool_x_t = torch.nn.functional.avg_pool2d(x[:, :, t, :, :], kernel_size=tuple(self.kernel_size), stride=tuple(self.stride))
+            else:
+                raise NotImplementedError()
             spk_rec[:, :, t, :, :] = pool_x_t
 
         self.spk_rec_hist = spk_rec.detach().cpu().numpy()

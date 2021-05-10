@@ -13,6 +13,8 @@ class SpikingConv1DLayer(SpikingNeuronBase):
     HAS_PARAM = True
 
     def __init__(self, *args, **kwargs):
+        if 'name' not in kwargs:
+            kwargs['name'] = 'Conv1D'
         if 'output_shape' not in kwargs:
             kwargs['output_shape'] = kwargs['input_shape']
 

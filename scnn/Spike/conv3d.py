@@ -9,6 +9,8 @@ from scnn.default_configs import *
 
 class SpikingConv3DLayer(SpikingConv2DLayer):
     def __init__(self, *args, **kwargs):
+        if 'name' not in kwargs:
+            kwargs['name'] = 'Conv3D'
         if 'output_shape' not in kwargs:
             kwargs['output_shape'] = kwargs['input_shape']
 
@@ -82,7 +84,7 @@ class SpikingConv3DLayer(SpikingConv2DLayer):
 
         return output
 
-    def draw(self, batch_id=0):
+    def draw(self, batch_id=0, layer_id=None):
         spk_rec_hist = self.spk_rec_hist[batch_id]
         mem_rec_hist = self.mem_rec_hist[batch_id]
 
@@ -112,23 +114,29 @@ class SpikingConv3DLayer(SpikingConv2DLayer):
             plt.plot(flat_mem[:, i], label='mem')
         plt.xlabel('Time')
         plt.ylabel('Membrace Potential')
+        if layer_id is not None:
+            plt.title('layer: %s' % layer_id)
         plt.show()
 
         plt.plot(flat_spk, '.')
         plt.xlabel('Time')
         plt.ylabel('Spikes')
+        if layer_id is not None:
+            plt.title('layer: %s' % layer_id)
         plt.show()
 
         plt.matshow(flat_spk, origin="upper", aspect='auto')
         plt.xlabel('Neuron')
         plt.ylabel('Spike Time')
         plt.axis([-1, flat_spk.shape[1], -1, flat_spk.shape[0]])
+        if layer_id is not None:
+            plt.title('layer: %s' % layer_id)
         plt.show()
 
         # Visual Plots
         max_visual = 5
 
-        time_idx = list(range(0, time_step, int(time_step / max_visual)))
+        time_idx = list(range(0, time_step, int(time_step / max_visual)))[:max_visual]
         neur_idx = np.random.randint(mem_rec_hist.shape[1], size=max_visual)
 
         gs = GridSpec(max_visual, max_visual)
@@ -146,7 +154,7 @@ class SpikingConv3DLayer(SpikingConv2DLayer):
                 else:
                     ax = plt.subplot(gs[counter], sharey=a0)
                 ax.imshow(mem_rec_hist[t, n, :, :], cmap=plt.cm.gray_r, origin="upper", aspect='auto')
-                plt.title('t(%d) - n(%d)' % (t, n))
+                plt.title('t(%d) - n(%d) - layer: %s' % (t, n, layer_id if layer_id is not None else ''))
                 counter += 1
         plt.show()
 
@@ -171,4 +179,6 @@ class SpikingConv3DLayer(SpikingConv2DLayer):
                     break
             if counter >= 60:
                 break
+        if layer_id is not None:
+            plt.title('layer: %s' % layer_id)
         plt.show()

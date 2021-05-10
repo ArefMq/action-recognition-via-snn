@@ -12,6 +12,8 @@ class SpikingDenseLayer(SpikingNeuronBase):
     HAS_PARAM = True
 
     def __init__(self, *args, **kwargs):
+        if 'name' not in kwargs:
+            kwargs['name'] = 'Dense'
         super(SpikingDenseLayer, self).__init__(*args, **kwargs)
 
         self.w = torch.nn.Parameter(torch.empty((self.input_shape, self.output_shape)), requires_grad=True)
@@ -84,23 +86,29 @@ class SpikingDenseLayer(SpikingNeuronBase):
         self.beta.data.clamp_(0., 1.)
         self.b.data.clamp_(min=0.)
 
-    def draw(self, batch_id=0):
+    def draw(self, batch_id=0, layer_id=None):
         mem_rec_hist = self.mem_rec_hist[batch_id]
         for i in range(mem_rec_hist.shape[1]):
             plt.plot(mem_rec_hist[:, i], label='mem')
             if i > 30:
                 break
+        if layer_id is not None:
+            plt.title('layer: %s' % layer_id)
         plt.xlabel('Time')
         plt.ylabel('Membrace Potential')
         plt.show()
 
         spk_rec_hist = self.spk_rec_hist[batch_id]
         plt.plot(spk_rec_hist, 'b.')
+        if layer_id is not None:
+            plt.title('layer: %s' % layer_id)
         plt.xlabel('Time')
         plt.ylabel('Spikes')
         plt.show()
 
         plt.matshow(spk_rec_hist, origin="upper", aspect='auto')
+        if layer_id is not None:
+            plt.title('layer: %s' % layer_id)
         plt.xlabel('Neuron')
         plt.ylabel('Spike Time')
         plt.axis([-1, spk_rec_hist.shape[1], -1, spk_rec_hist.shape[0]])

@@ -4,7 +4,7 @@ from random import randint
 from data.cache_generator import data_loader, GESTURE_MAPPING
 
 
-def data_augment(*args, **kwargs):
+def data_augment(dataloader, *args, **kwargs):
     max_augmentation = kwargs.pop('max_augmentation', 1)
     aug_enabled = kwargs.pop('augmentation', True)
     aug_x_offset = kwargs.pop('aug_x_offset', 10)
@@ -12,7 +12,7 @@ def data_augment(*args, **kwargs):
     aug_frame_offset = kwargs.pop('aug_f_offset', 10)
     frame = kwargs.pop('frame', 100)
 
-    for data_x, data_y in data_loader(*args, **kwargs):
+    for data_x, data_y in dataloader(*args, **kwargs):
         label_histogram = {i: 0 for i in GESTURE_MAPPING.keys()}
         max_hist = None
         output_x = []
@@ -33,7 +33,7 @@ def data_augment(*args, **kwargs):
                 frame_offset = 0
 
             for i in range(frame_offset, data_x.shape[0]):
-                current_x = np.reshape(data_x[i], (64, 64))
+                current_x = np.reshape(data_x[i], (128, 128))
                 current_y = data_y[i]
 
                 # image augmentation

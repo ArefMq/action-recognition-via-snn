@@ -227,10 +227,12 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
 
         print(output, end='')
 
-    def plot_one_batch(self, x_batch, y_batch=None, batch_id=0):
-        self.predict(x_batch)
+    def plot_one_batch(self, load_data_generator, batch_id=0):
+        for xb, yb in load_data_generator:
+            self.predict(xb)
 
-        for i, l in enumerate(self.layers):
-            if 'spk_rec_hist' in l.__dict__ and l.spk_rec_hist is not None:
-                print("Layer {}: average number of spikes={:.4f}".format(i, l.spk_rec_hist.mean()))
-            l.draw(batch_id)
+            for i, l in enumerate(self.layers):
+                if 'spk_rec_hist' in l.__dict__ and l.spk_rec_hist is not None:
+                    print("Layer {}: average number of spikes={:.4f}".format(i, l.spk_rec_hist.mean()))
+                l.draw(batch_id, layer_id='%s (%d)' % (l.name, i))
+            break

@@ -11,23 +11,19 @@ class ReadoutLayer(SpikingNeuronBase):
     HAS_PARAM = True
 
     def __init__(self, *args, **kwargs):
+        if 'name' not in kwargs:
+            kwargs['name'] = 'ReadoutLayer'
         super(ReadoutLayer, self).__init__(*args, **kwargs)
 
         time_reduction = kwargs.get('time_reduction')
         if time_reduction == 'avg':
             time_reduction = 'mean'
-        assert time_reduction in ["mean", "max"], 'time_reduction should be "mean" or "max"'
         self.time_reduction = time_reduction
 
         self.w = torch.nn.Parameter(torch.empty((self.input_shape, self.output_shape)), requires_grad=True)
         if time_reduction == "max":
             self.beta = torch.nn.Parameter(torch.tensor(0.7 * np.ones((1))), requires_grad=True)
         self.b = torch.nn.Parameter(torch.empty(self.output_shape), requires_grad=True)
-
-        self.reset_parameters()
-        self.clamp()
-
-        self.mem_rec_hist = None
 
     def trainable(self):
         if self.time_reduction == "max":
@@ -76,12 +72,15 @@ class ReadoutLayer(SpikingNeuronBase):
         if self.time_reduction == "max":
             self.beta.data.clamp_(0., 1.)
 
-    def draw(self, batch_id=0):
+    def draw(self, batch_id=0, layer_id=None):
         mem_rec_hist = self.mem_rec_hist[batch_id]
         for i in range(mem_rec_hist.shape[1]):
             plt.plot(mem_rec_hist[:, i], label='mem')
             if i > 30:
                 break
+        if layer_id is not None:
+            plt.title('layer: %s' % layer_id)
         plt.xlabel('Time')
         plt.ylabel('Membrace Potential')
         plt.show()
+

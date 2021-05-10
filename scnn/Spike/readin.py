@@ -9,6 +9,8 @@ class ReadInLayer(SpikingNeuronBase):
     HAS_PARAM = False
 
     def __init__(self, *args, **kwargs):
+        if 'name' not in kwargs:
+            kwargs['name'] = 'ReadinLayer'
         super(ReadInLayer, self).__init__(*args, **kwargs)
         if self.input_channels is None:
             self.input_channels = 1

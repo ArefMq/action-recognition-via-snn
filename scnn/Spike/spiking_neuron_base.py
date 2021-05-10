@@ -64,7 +64,7 @@ class SpikingNeuronBase(torch.nn.Module):
     def clamp(self):
         pass
 
-    def draw(self, batch_id=0):
+    def draw(self, batch_id=0, layer_id=None):
         pass
 
     # Functions

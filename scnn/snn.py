@@ -31,6 +31,46 @@ def default_notifier(*msg, **kwargs):
         print(*msg)
 
 
+def tabler(table, column_config=None):
+    # Find number of columns
+    if column_config is None:
+        num_of_columns = max([len(tr) for tr in table])
+    else:
+        num_of_columns = len(column_config)
+        for i, cc in enumerate(column_config):
+            if 'dir' not in cc:
+                column_config[i]['dir'] = '<'
+
+    # Fill N/A with empty string
+    for t in range(len(table)):
+        if num_of_columns > len(table[t]):
+            for _ in range(num_of_columns - len(table[t])):
+                table[t].append('')
+
+    # Calculate each column length
+    col_lens = []
+    for c in range(num_of_columns):
+        if column_config is not None:
+            col_lens.append(max(len(column_config[c]['title']), max([len(tr[c]) for tr in table])))
+        else:
+            col_lens.append(max([len(tr[c]) for tr in table]))
+
+    bar = '=' * (sum(col_lens) + num_of_columns*3) + '\n'
+
+    # Create table
+    str_formatter = ' | '.join(['{%d: %s%d}' % (i, column_config[i]['dir'] if column_config is not None else '<', cl) for i, cl in enumerate(col_lens)])
+    result = ''
+    if column_config is not None:
+        result += bar
+        result += str_formatter.format(*[cc['title'] for cc in column_config]) + '\n'
+        result += bar
+    for tr in table:
+        result += str_formatter.format(*tr) + '\n'
+    if column_config is not None:
+        result += bar
+    return result
+
+
 class SNN(torch.nn.Module):
     def __init__(self, *args, **kwargs):
         super(SNN, self).__init__()
@@ -135,7 +175,7 @@ class SNN(torch.nn.Module):
     def save_network_summery(self, file):
         file.write('\n============================================\n')
         file.write('New Run: ' + str(datetime.now()) + "\n")
-        file.write("network_design: " + self.serialize_to_text() + "\n")
+        file.write("network_design: " + self.__str__() + "\n")
         file.flush()
 
     @staticmethod
@@ -194,6 +234,40 @@ class SNN(torch.nn.Module):
                 res += ' => '
             res += l.__str__()
         return res
+
+    def print_summery(self):
+        print('Network Summery:')
+        print(self.summery())
+
+    def summery(self):
+        def multiply(l):
+            res = 1
+            for i in l:
+                res *= i
+            return res
+
+        table_config = [{'title': t} for t in ['#', 'name', 'shape', 'parameters']]
+        table_values = []
+        for i, l in enumerate(self.network.layers):
+            if 'readin' in l.name.lower() or 'pool' in l.name.lower():
+                num_of_params = 'N/A'
+            elif l.IS_CONV:
+                num_of_params = str(multiply([l.output_channels, *l.kernel_size, l.input_channels]))
+            else:
+                num_of_params = str(l.output_shape * l.input_shape)
+
+            row = [
+                str(i),
+                l.name,
+                '{0}{1}'.format(l.output_shape, '' if l.output_channels is None else 'x %d' % l.output_channels),
+                num_of_params,
+            ]
+
+            table_values.append(row)
+            if 'pool' in l.name.lower():
+                table_values.append([''] * len(row))
+
+        return tabler(table_values, table_config)
 
     def deserialize(self, network_ser):
         for p in network_ser['network']:
@@ -269,3 +343,45 @@ class SNN(torch.nn.Module):
 
     def compute_classification_accuracy(self, *args, **kwargs):
         return self.network.compute_classification_accuracy(*args, **kwargs)
+
+    def _parse_dense(self, l_str):
+        l = [l.strip() for l in l_str.split(',')]
+        neurons = l[0]
+        recurrent = len(l) > 1 and 'r' in l[1]
+        lateral = len(l) > 1 and 'l' in l[1]
+
+        self.add_dense(
+            output_shape=int(neurons),
+            w_init_mean=0.0,
+            w_init_std=0.8,
+            recurrent=recurrent,
+            lateral_connections=lateral,
+            dropout_prob=0.3,
+        )
+
+    def _parse_conv(self, l_str):
+        l = [l.strip() for l in l_str.split(',')]
+        neurons = l[0]
+        recurrent = (len(l) > 1 and 'r' in l[1]) or (len(l) > 2 and 'r' in l[2])
+        lateral = (len(l) > 1 and 'l' in l[1]) or (len(l) > 2 and 'l' in l[2])
+        kernel = [int(l[-1].replace('k', ''))]*3
+
+        self.add_conv3d(
+            output_channels=int(neurons),
+            kernel_size=kernel,
+            dilation=(1, 1, 1),
+            recurrent=recurrent,
+            lateral_connections=lateral,
+
+            w_init_mean=0.00,
+            w_init_std=0.05
+        )
+        self.add_pool2d(kernel_size=(2, 2), reduction='max')
+
+    def parse_str(self, net_str):
+        net = [n.strip() for n in net_str.split('->')]
+        for l in net:
+            if l.startswith('d'):
+                self._parse_dense(l.replace('d(', '').replace(')', ''))
+            if l.startswith('c'):
+                self._parse_conv(l.replace('c(', '').replace(')', ''))

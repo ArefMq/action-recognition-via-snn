@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 
 from scnn.Spike.dense import SpikingDenseLayer
 from scnn.default_configs import *
@@ -57,3 +59,25 @@ class SpikingDenseStream(SpikingDenseLayer):
         self.spk_rec_hist = torch.zeros((batch_size, self.histogram_memory_size, self.output_shape), dtype=x_dtype)
         self.mem_rec_hist = torch.zeros((batch_size, self.histogram_memory_size, self.output_shape), dtype=x_dtype)
         self.history_counter = 0
+
+    def draw(self, batch_id=0):
+        mem_rec_hist = self.mem_rec_hist[batch_id]
+        for i in range(mem_rec_hist.shape[1]):
+            plt.plot(mem_rec_hist[:, i], label='mem')
+            if i > 30:
+                break
+        plt.xlabel('Time')
+        plt.ylabel('Membrace Potential')
+        plt.show()
+
+        spk_rec_hist = self.spk_rec_hist[batch_id]
+        plt.plot(spk_rec_hist, 'b.')
+        plt.xlabel('Time')
+        plt.ylabel('Spikes')
+        plt.show()
+
+        plt.matshow(spk_rec_hist)
+        plt.xlabel('Neuron')
+        plt.ylabel('Spike Time')
+        plt.axis([-1, spk_rec_hist.shape[1], -1, spk_rec_hist.shape[0]])
+        plt.show()

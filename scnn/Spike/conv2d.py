@@ -9,6 +9,8 @@ from scnn.default_configs import *
 
 class SpikingConv2DLayer(SpikingConv1DLayer):
     def __init__(self, *args, **kwargs):
+        if 'name' not in kwargs:
+            kwargs['name'] = 'Conv2D'
         if 'output_shape' not in kwargs:
             kwargs['output_shape'] = kwargs['input_shape']
 

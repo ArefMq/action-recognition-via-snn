@@ -12,7 +12,7 @@ class EOF(Exception):
 
 def read_file(f, size, unpack_type=None):
     d = f.read(size)
-    if d == '':
+    if d == '' or d == b'':
         raise EOF()
     if unpack_type is None:
         unpack_type = 'H' if size == 2 else 'I'
@@ -21,8 +21,8 @@ def read_file(f, size, unpack_type=None):
 
 def skip_file_header(f):
     line_counter = 0
-    line = '#'
-    while line.startswith('#') and not line.startswith('#!END-HEADER'):
+    line = b'#'
+    while line.startswith(b'#') and not line.startswith(b'#!END-HEADER'):
         line = f.readline()
 
 

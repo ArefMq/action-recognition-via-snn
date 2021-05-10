@@ -22,6 +22,9 @@ class ReadInStream(ReadInLayer):
         if self.flatten_output:
             return x.view(batch_size, self.output_channels * np.prod(self.output_shape))
         else:
+            print('a:', self.output_channels)
+            print('b:', self.output_shape)
+            print('x:', x.shape)
             return x.view(batch_size, self.output_channels, *self.output_shape)
 
     def reset_mem(self, batch_size, x_device, x_dtype):
