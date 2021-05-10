@@ -147,7 +147,8 @@ def load_all_files(**kwargs):
         counter2 = 0
         for x_chunk, y_chunk in frame_collector(file_name, **kwargs):
             counter2 += 1
-            print('\r%d) reading:' % counter1, '...%s' % file_name[-30:], '(chunk: %d)' % counter2, end='')
+            if not kwargs.get('silent', False):
+                print('\r%d) reading:' % counter1, '...%s' % file_name[-30:], '(chunk: %d)' % counter2, end='')
             yield x_chunk, y_chunk
 
 

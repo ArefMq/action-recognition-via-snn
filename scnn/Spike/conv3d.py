@@ -48,7 +48,7 @@ class SpikingConv3DLayer(SpikingConv2DLayer):
         spk = torch.zeros((batch_size, self.output_channels, *self.output_shape), dtype=x.dtype, device=x.device)
 
         spk_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype, device=x.device)
-        mem_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype)
+        # mem_rec = torch.zeros((batch_size, self.output_channels, nb_steps, *self.output_shape), dtype=x.dtype)
 
         if self.lateral_connections:
             d = torch.einsum("abcde, fbcde -> af", self.w, self.w)
@@ -71,10 +71,10 @@ class SpikingConv3DLayer(SpikingConv2DLayer):
             spk = self.spike_fn(mthr)
 
             spk_rec[:, :, t, :, :] = spk
-            mem_rec[:, :, t, :, :] = mem.detach().cpu()
+            # mem_rec[:, :, t, :, :] = mem.detach().cpu()
 
-        self.spk_rec_hist = spk_rec.detach().cpu().numpy()
-        self.mem_rec_hist = mem_rec.numpy()  # FIXME: do this refactor for other layers as well
+        # self.spk_rec_hist = spk_rec.detach().cpu().numpy()
+        # self.mem_rec_hist = mem_rec.numpy()  # FIXME: do this refactor for other layers as well
 
         if self.flatten_output:
             output = torch.transpose(spk_rec, 1, 2).contiguous()
@@ -85,6 +85,9 @@ class SpikingConv3DLayer(SpikingConv2DLayer):
         return output
 
     def draw(self, batch_id=0, layer_id=None):
+        if self.mem_rec_hist is None:
+            return
+
         spk_rec_hist = self.spk_rec_hist[batch_id]
         mem_rec_hist = self.mem_rec_hist[batch_id]
 

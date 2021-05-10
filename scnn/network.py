@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+import gc
+
 
 from scnn.funny_printer import FunPack
 
@@ -63,6 +65,9 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
     def forward(self, x):
         for l in self.layers:
             x = l(x)
+            # print('\nCollecting Garbage...')
+            # gc.collect()
+            # print('\t- [Done Collecting]')
         return x
 
     def clamp(self):
@@ -111,6 +116,9 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
             if self.time_expector is not None:
                 self.time_expector.macro_tick()
 
+            # print('\nCollecting Garbage...')
+            # gc.collect()
+            # print('\t- [Done Collecting]')
             # train
             dataset_counter = 0
             self.train()
@@ -127,6 +135,9 @@ class SpikingNeuralNetworkBase(torch.nn.Module):
             self.res_metrics['train_loss_min'].append(np.min(losses))
             train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
+            # print('\nCollecting Garbage...')
+            # gc.collect()
+            # print('\t- [Done Collecting]')
             # evaluate
             self.eval()
             with torch.no_grad():

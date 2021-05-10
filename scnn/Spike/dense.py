@@ -44,7 +44,7 @@ class SpikingDenseLayer(SpikingNeuronBase):
 
         # output spikes recording
         spk_rec = torch.zeros((batch_size, nb_steps, self.output_shape), dtype=x.dtype, device=x.device)
-        self.mem_rec_hist = torch.zeros((batch_size, nb_steps, self.output_shape), dtype=x.dtype)
+        # self.mem_rec_hist = torch.zeros((batch_size, nb_steps, self.output_shape), dtype=x.dtype)
 
         if self.lateral_connections:
             d = torch.einsum("ab, ac -> bc", self.w, self.w)
@@ -67,11 +67,11 @@ class SpikingDenseLayer(SpikingNeuronBase):
             spk = self.spike_fn(mthr)
 
             spk_rec[:, t, :] = spk
-            self.mem_rec_hist[:, t, :] = mem.detach().cpu()
+            # self.mem_rec_hist[:, t, :] = mem.detach().cpu()
 
             # save spk_rec for plotting
-        self.spk_rec_hist = spk_rec.detach().cpu().numpy()
-        self.mem_rec_hist = self.mem_rec_hist.numpy()
+        # self.spk_rec_hist = spk_rec.detach().cpu().numpy()
+        # self.mem_rec_hist = self.mem_rec_hist.numpy()
 
         return spk_rec
 
@@ -87,6 +87,9 @@ class SpikingDenseLayer(SpikingNeuronBase):
         self.b.data.clamp_(min=0.)
 
     def draw(self, batch_id=0, layer_id=None):
+        if self.mem_rec_hist is None:
+            return
+
         mem_rec_hist = self.mem_rec_hist[batch_id]
         for i in range(mem_rec_hist.shape[1]):
             plt.plot(mem_rec_hist[:, i], label='mem')

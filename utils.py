@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import seaborn as sns
-from random import random
+from random import random, randint, shuffle, choice, choices
+
 
 def train_test_split(x_data, y_data, test_size):
     def _select(data, indices):
@@ -17,6 +18,37 @@ def train_test_split(x_data, y_data, test_size):
             idx_test.append(i)
 
     return _select(x_data, idx_train), _select(x_data, idx_test), _select(y_data, idx_train), _select(y_data, idx_test)
+
+
+def data_hist(y_data, num_of_classes):
+    hist = {i:0 for i in range(num_of_classes)}
+    for i in y_data:
+        hist[i] += 1
+
+    max_data = max(hist.values())
+    for k, i in hist.items():
+        print('%2d)' % k, '#' * int(30 * i / max_data), '(%d)' % i)
+
+
+def equalizer(data_x, data_y, num_of_classes, augmentation_multiplier=0):
+    label_indicies = {i: np.array(data_y) == i for i in range(num_of_classes)}
+    label_histogram = {i: sum(label_indicies[i]) for i in range(num_of_classes)}
+
+    target_value = max(label_histogram.values()) * (1+augmentation_multiplier)
+    for i in range(num_of_classes):
+        to_add = target_value - label_histogram[i]
+        if not to_add:
+            continue
+
+        ids = np.nonzero(label_indicies[i])[0]
+        for i in choices(ids, k=to_add):
+            data_x.append(data_x[i])
+            data_y.append(data_y[i])
+
+    # print(len(data_x), '\n', len(data_y))
+    idx = [i for i in range(len(data_x))]
+    shuffle(idx)
+    return [data_x[i] for i in idx], [data_y[i] for i in idx]
 
 
 def plot_spikes_in_time(layer, batch_id=0):

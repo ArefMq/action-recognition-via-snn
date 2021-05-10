@@ -58,7 +58,7 @@ class ReadoutLayer(SpikingNeuronBase):
             output = torch.mean(mem_rec, 1) / (norm + 1e-8) - self.b
 
         # save mem_rec for plotting
-        self.mem_rec_hist = mem_rec.detach().cpu().numpy()
+        # self.mem_rec_hist = mem_rec.detach().cpu().numpy()
         return output
 
     def reset_parameters(self):
@@ -73,6 +73,9 @@ class ReadoutLayer(SpikingNeuronBase):
             self.beta.data.clamp_(0., 1.)
 
     def draw(self, batch_id=0, layer_id=None):
+        if self.mem_rec_hist is None:
+            return
+
         mem_rec_hist = self.mem_rec_hist[batch_id]
         for i in range(mem_rec_hist.shape[1]):
             plt.plot(mem_rec_hist[:, i], label='mem')

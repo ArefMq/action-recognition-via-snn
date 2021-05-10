@@ -46,7 +46,7 @@ class SpikingPool2DLayer(SpikingNeuronBase):
                 raise NotImplementedError()
             spk_rec[:, :, t, :, :] = pool_x_t
 
-        self.spk_rec_hist = spk_rec.detach().cpu().numpy()
+        # self.spk_rec_hist = spk_rec.detach().cpu().numpy()
 
         if self.flatten_output:
             output = torch.transpose(spk_rec, 1, 2).contiguous()

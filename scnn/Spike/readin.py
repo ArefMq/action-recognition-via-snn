@@ -31,5 +31,5 @@ class ReadInLayer(SpikingNeuronBase):
         else:
             x = x.view(batch_size, self.output_channels, nb_steps, *self.output_shape)
 
-        self.spk_rec_hist = x.detach().cpu().numpy()
+        # self.spk_rec_hist = x.detach().cpu().numpy()
         return x
