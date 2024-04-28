@@ -6,10 +6,19 @@ from spikenet.tools.configs import W_INIT_MEAN, W_INIT_STD
 
 
 class NeuronBase(torch.nn.Module, ABC):
+    @classmethod
+    def __layer_id(cls) -> int:
+        if not hasattr(cls, "_id"):
+            cls._id = 0
+        cls._id += 1
+        return cls._id
+
     def __init__(self, **kwargs) -> None:
         super().__init__()
-        self.name = kwargs.get('name', None)
-        self.input_dim = int(kwargs["input_dim"])
+        self.name = kwargs.get("name", f"{self.__layer_id()}_{self.__class__.__name__}")
+        self.input_dim = kwargs["input_dim"]
+        if self.input_dim is not None:
+            self.input_dim = int(self.input_dim)
         self.output_dim = int(kwargs["output_dim"])
         self.w_init_mean = kwargs.get('w_init_mean', W_INIT_MEAN)
         self.w_init_std = kwargs.get('w_init_std', W_INIT_STD)
@@ -30,3 +39,7 @@ class NeuronBase(torch.nn.Module, ABC):
     def reset(self):
         self.initialize_parameters()
         self.clamp()
+
+    def __str__(self) -> str:
+        return f"{self.name}({self.output_dim})"
+

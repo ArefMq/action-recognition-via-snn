@@ -22,6 +22,9 @@ class DataLoader:
         self.__test_loader = self.test_dataloader()
         self.__shape: tuple[torch.Size, torch.Size] = None  # type: ignore
 
+    def len(self, trail: str = "train") -> int:
+        return len(self.train_data) if trail == "train" else len(self.test_data)
+
     def get_train_data(self) -> data.Dataset:
         raise NotImplementedError
 
@@ -78,7 +81,9 @@ class DataLoader:
 
     def describe(self) -> None:
         xshape, yshape = self.shape
-        print(f"shape:\n  - x: {xshape}\n  - y: {yshape}")
+        print("shape:")
+        print(f"  - x: {xshape}")
+        print(f"  - y: {yshape}")
         print(f"  - batch_size: {self.batch_size}")
 
     def __repr__(self) -> str:

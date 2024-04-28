@@ -4,14 +4,7 @@ import torch
 from torch.nn.parameter import Parameter
 
 from spikenet.dataloader import DataLoader
-
-
-def _default_call_back(net, epoch, i, loss):
-    if i == 0:
-        print(f"\nEpoch: {epoch}: ", end="")
-    if i % 20 != 0:
-        return
-    print(".", end="")
+from spikenet.tools.utils.callbacks_helper import CallbackFactory, CallbackTypes
 
 
 @dataclass
@@ -20,7 +13,7 @@ class Network:
     class Criterion:
         optimizer_generator: torch.optim.Optimizer = torch.optim.SGD
         optimizer: torch.optim.Optimizer | Any | None = None
-        loss_fn: torch.nn.Module = torch.nn.CrossEntropyLoss
+        loss_fn: torch.nn.Module = torch.nn.L1Loss
         epochs: int = 10
         learning_rate: float = 0.01
 
@@ -49,9 +42,15 @@ class Network:
     criterion: Criterion = field(default_factory=Criterion)
 
     def add_layer(
-        self, module: torch.nn.Module, *args, **kwargs
+        self,
+        module: torch.nn.Module,
+        output_dim: int,
+        input_dim: int | None = None,
+        **kwargs,
     ) -> "Network":
-        self.layers.append(module(*args, **kwargs))
+        if input_dim is None and len(self.layers) > 0:
+            input_dim = self.layers[-1].output_dim
+        self.layers.append(module(input_dim=input_dim, output_dim=output_dim, **kwargs))
         return self
 
     @classmethod
@@ -70,13 +69,18 @@ class Network:
         return net
 
     def build(self) -> "Network._CompiledNetwork":
+        for layer in self.layers:
+            layer.to(self.device)
+            assert layer.input_dim is not None, f"input_dim is not set for {layer}"
         return Network._CompiledNetwork(self).to(self.device)
 
     def fit(self, dataloader: DataLoader, **kwargs) -> "Network._CompiledNetwork":
-        # fix the input size of the first layer and then build the network
+        if self.layers[0].input_dim is None:
+            input_shape, _ = dataloader.shape
+            # FIXME : this will not work with conv.layers
+            self.layers[0].input_dim = input_shape[1]
         net = self.build()
-        net.initialize_parameters()
-        a, b = net.fit(dataloader, **kwargs)
+        net.fit(dataloader, **kwargs)
         return net
 
     class _CompiledNetwork(torch.nn.Module):
@@ -98,20 +102,27 @@ class Network:
                 for param in layer.parameters():
                     yield param
 
-        def forward(self, x: torch.Tensor, save_history: bool = True) -> torch.Tensor:
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
             for layer in self.layers:
-                x = layer(x, save_history=save_history)
+                x = layer(x)
             return x
 
-        def fit(self, dataloader: DataLoader, **kwargs) -> tuple[int, int]:
+        def clamp(self) -> None:
+            for layer in self.layers:
+                layer.clamp()
+
+        def fit(self, dataloader: DataLoader, **kwargs) -> "Network._CompiledNetwork":
             self.train(dataloader, **kwargs)
-            return self.test(dataloader)
+            self.test(dataloader)
+            return self
 
         def train(
-            self, dataloader: DataLoader | bool, callback: Callable | None = "default", **kwargs
+            self,
+            dataloader: DataLoader | bool,
+            callbacks: CallbackTypes = "default",
+            **kwargs,
         ) -> None:
-            if callback == "default":
-                callback = _default_call_back
+            callbacks = CallbackFactory.parse_callbacks(callbacks)
             if isinstance(dataloader, bool):
                 return super().train(dataloader)
 
@@ -122,8 +133,22 @@ class Network:
             optimizer = crit.get_optim(self)
             loss_fn = crit.get_loss_fn(self)
 
+            callbacks(net=self, call_type="train.before")
             for epoch in range(crit.epochs):
+                callbacks(
+                    net=self,
+                    epoch=epoch,
+                    dataload_length=dataloader.len("train"),
+                    call_type="train.epoch.before",
+                )
                 for i, (x_data, y_data) in enumerate(dataloader("train")):
+                    callbacks(
+                        net=self,
+                        epoch=epoch,
+                        batch_id=i,
+                        call_type="train.batch.before",
+                    )
+
                     x_data: torch.Tensor = x_data.to(self.config.device)
                     y_data: torch.Tensor = y_data.to(self.config.device)
 
@@ -131,7 +156,7 @@ class Network:
                     assert not torch.isnan(y_data).any(), "NaN in y_data"
 
                     # Forward pass
-                    outputs = self.forward(x_data, save_history=False)
+                    outputs = self.forward(x_data)
                     assert not torch.isnan(outputs).any(), "NaN in outputs"
                     loss: torch.Tensor = loss_fn(outputs, y_data)
                     assert not torch.isnan(loss).any(), "NaN in loss"
@@ -140,36 +165,64 @@ class Network:
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
+                    self.clamp()
 
-                    if callback is not None:
-                        callback(self, epoch, i, loss.item())
-                self.snapshot_cycle()
-        
-        def snapshot_cycle(self) -> None:
-            for layer in self.layers:
-                layer.snapshot_cycle()
+                    callbacks(
+                        net=self,
+                        epoch=epoch,
+                        batch_id=i,
+                        outputs=outputs,
+                        loss=loss.item(),
+                        call_type="train.batch.after",
+                    )
+                callbacks(net=self, epoch=epoch, call_type="train.epoch.after")
+            callbacks(net=self, call_type="train.after")
 
         def test(
-            self, dataloader: DataLoader, callback: Callable | None = "default"
+            self, dataloader: DataLoader, callbacks: CallbackTypes = "default"
         ) -> tuple[int, int]:
-            if callback == "default":
-                callback = _default_call_back
+            callbacks = CallbackFactory.parse_callbacks(callbacks)
             self.eval()
             with torch.no_grad():
+                callbacks(
+                    net=self,
+                    dataloader_length=dataloader.len("test"),
+                    call_type="test.before",
+                )
                 correct = 0
                 total = 0
                 for i, (x_data, y_data) in enumerate(dataloader("test")):
+                    callbacks(
+                        net=self,
+                        batch_id=i,
+                        call_type="test.batch.before",
+                    )
+
                     x_data = x_data.to(self.config.device)
                     y_data = y_data.to(self.config.device)
 
                     outputs = self(x_data)
                     # TODO: this should be a function
                     _, predicted = torch.max(outputs.data, 1)
+                    _, expected = torch.max(y_data, 1)
                     total += y_data.size(0)
-                    correct += (predicted == y_data).sum().item()
+                    correct += (predicted == expected).sum().item()
 
-                    if callback is not None:
-                        callback(self, i, total, correct)
+                    callbacks(
+                        net=self,
+                        batch_id=i,
+                        total_test_points=total,
+                        correct_test_points=correct,
+                        predicted=predicted,
+                        expected=expected,
+                        call_type="test.batch.after",
+                    )
+            callbacks(
+                net=self,
+                total_test_points=total,
+                correct_test_points=correct,
+                call_type="test.after",
+            )
             return total, correct
 
         def __repr__(self):

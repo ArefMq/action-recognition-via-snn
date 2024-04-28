@@ -1,3 +1,6 @@
+from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation
+import numpy as np
 import torch
 from spikenet.dataloader import DataLoader
 
@@ -71,4 +74,40 @@ class SpikePlotter:
         x = x.reshape(-1, 28, 28).numpy()
         plt.imshow(x.sum(0))
         plt.title(f"Label: {y.item()}")
+        plt.show()
+
+    def animate(
+        self,
+        data: torch.Tensor,
+        vmin: float = 0,
+        vmax: float = 1,
+        cmap: str = "gray",
+        title: str | None = None,
+    ):
+        fig, ax = plt.subplots()
+        if isinstance(data, torch.Tensor):
+            data = data.detach().numpy()
+        t, w, h = data.shape
+        img = ax.imshow(np.ones((w, h)), cmap=cmap, vmin=vmin, vmax=vmax)
+        if title:
+            ax.set_title(title)
+
+        def init():
+            return (img,)
+
+        def update(frame):
+            img.set_data(data[frame])
+            return (img,)
+
+        ani = FuncAnimation(
+            fig, update, frames=np.arange(0, t), init_func=init, blit=False
+        )
+        res = ani.to_jshtml()
+        plt.close()
+        return res
+
+    def plot_spikes_history_1d(self, spikes, title: str | None = None):
+        plt.figure()
+        plt.plot(spikes)
+        plt.title(title or "1D Spikes")
         plt.show()
