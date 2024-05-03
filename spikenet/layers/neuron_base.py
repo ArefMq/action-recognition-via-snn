@@ -16,10 +16,10 @@ class NeuronBase(torch.nn.Module, ABC):
     def __init__(self, **kwargs) -> None:
         super().__init__()
         self.name = kwargs.get("name", f"{self.__layer_id()}_{self.__class__.__name__}")
-        self.input_dim = kwargs["input_dim"]
-        if self.input_dim is not None:
-            self.input_dim = int(self.input_dim)
-        self.output_dim = int(kwargs["output_dim"])
+        self.in_features = kwargs["in_features"]
+        if self.in_features is not None:
+            self.in_features = int(self.in_features)
+        self.out_features = int(kwargs["out_features"])
         self.w_init_mean = kwargs.get('w_init_mean', W_INIT_MEAN)
         self.w_init_std = kwargs.get('w_init_std', W_INIT_STD)
 
@@ -41,5 +41,5 @@ class NeuronBase(torch.nn.Module, ABC):
         self.clamp()
 
     def __str__(self) -> str:
-        return f"{self.name}({self.output_dim})"
+        return f"{self.name}({self.out_features})"
 

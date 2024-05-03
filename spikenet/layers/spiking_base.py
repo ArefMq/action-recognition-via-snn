@@ -32,15 +32,28 @@ class SpikingNeuron(NeuronBase, ABC):
         self.beta: torch.nn.Parameter = None
         self.b: torch.nn.Parameter = None
 
+        self.beta_init_std = kwargs.get("beta_init_std", 0.01)
+        self.beta_init_mean = kwargs.get("beta_init_mean", 0.7)
+        self.b_init_std = kwargs.get("b_init_std", 0.01)
+        self.b_init_mean = kwargs.get("b_init_mean", 1.0)
+
     @property
     def is_spiking(self) -> bool:
         return True
 
     @property
+    def time_reduction_method(self) -> str:
+        return (
+            self.__time_reduction.name
+            if isinstance(self.__time_reduction, TimeReduction)
+            else "CustomReduction"
+        )
+
+    @property
     def mem_rec(self) -> torch.Tensor:
         """
         Returns the membrane potential record of the neuron
-        The membrane potential record is a tensor of shape (batch_size, time_steps, *output_dim)
+        The membrane potential record is a tensor of shape (batch_size, time_steps, *out_features)
         """
         return self.__mem_rec
 
@@ -48,7 +61,7 @@ class SpikingNeuron(NeuronBase, ABC):
     def spike_rec(self) -> torch.Tensor:
         """
         Returns the spike record of the neuron
-        The spike record is a binary tensor of shape (batch_size, time_steps, *output_dim)
+        The spike record is a binary tensor of shape (batch_size, time_steps, *out_features)
         """
         return self.__spike_rec
 
@@ -69,16 +82,16 @@ class SpikingNeuron(NeuronBase, ABC):
         :return: the output tensor
         """
         assert self.w is not None, "Parameters are not initialized"
-        if not x.any():
-            print(
-                f"[Warning-{self.name}] No spikes in the layer when trying to forward"
-            )
+        # if not x.any():
+        #     print(
+        #         f"[Warning-{self.name}] No spikes in the layer when trying to forward"
+        #     )
         spk_rec, mem_rec = self.spike_forward(x)
         assert not torch.isnan(mem_rec).any(), f"[{self.name}] NaN in mem_rec"
         assert not torch.isnan(spk_rec).any(), f"[{self.name}] NaN in spk_rec"
         self.__mem_rec = mem_rec
-        self.__spike_rec = spk_rec
         res = self.time_reduction(spk_rec, mem_rec)
+        self.__spike_rec = res
         assert not torch.isnan(res).any(), f"[{self.name}] NaN in output"
         return res
 
@@ -102,7 +115,10 @@ class SpikingNeuron(NeuronBase, ABC):
 
     # ~~~~~~~~ Time Reduction ~~~~~~~~
     def time_reduction(self, spk: torch.Tensor, mem: torch.Tensor) -> torch.Tensor:
-        if self.__time_reduction is None or self.__time_reduction == TimeReduction.NoTimeReduction:
+        if (
+            self.__time_reduction is None
+            or self.__time_reduction == TimeReduction.NoTimeReduction
+        ):
             return spk
         if callable(self.__time_reduction):
             return self.__time_reduction(spk)
@@ -124,13 +140,14 @@ class SpikingNeuron(NeuronBase, ABC):
     def __time_reduction_spike_time(self, x: torch.Tensor) -> torch.Tensor:
         max_data = torch.max(x, 1).indices
         max_min_data = max_data.min(1)[1]
-        return torch.nn.functional.one_hot(max_min_data, num_classes=self.output_dim).to(torch.float32)
+        return torch.nn.functional.one_hot(
+            max_min_data, num_classes=self.out_features
+        ).to(torch.float32)
 
     def __time_reduction_mem_rec_max(self, mem_rec: torch.Tensor) -> torch.Tensor:
         output = torch.max(mem_rec, 1)[0] / (self.w_norm + 1e-8) - self.b
         return output
-    
+
     def __time_reduction_mem_rec_mean(self, mem_rec: torch.Tensor) -> torch.Tensor:
         output = torch.mean(mem_rec, 1) / (self.w_norm + 1e-8) - self.b
         return output
-

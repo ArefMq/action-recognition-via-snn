@@ -5,6 +5,8 @@ import torch
 class SurrogateHeaviside(torch.autograd.Function):
     # Activation function with surrogate gradient
     sigma = 10.0
+    gradient_method = torch.sigmoid
+    # gradient_method = torch.tanh
 
     @staticmethod
     def forward(ctx, input: Any) -> Any:
@@ -21,8 +23,7 @@ class SurrogateHeaviside(torch.autograd.Function):
         # approximation of the gradient using sigmoid function
         grad = (
             grad_input
-            * torch.sigmoid(SurrogateHeaviside.sigma * input)
-            * torch.sigmoid(-SurrogateHeaviside.sigma * input)
+            * SurrogateHeaviside.gradient_method(SurrogateHeaviside.sigma * input)
+            * SurrogateHeaviside.gradient_method(-SurrogateHeaviside.sigma * input)
         )
-        assert not torch.isnan(grad).any(), "NaN in grad"
         return grad

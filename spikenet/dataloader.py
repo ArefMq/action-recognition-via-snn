@@ -88,3 +88,14 @@ class DataLoader:
 
     def __repr__(self) -> str:
         return f"DataLoader: {self.train_data}, {self.test_data}"
+
+    def analyze(self) -> None:
+        # fixme: this is a temporary solution
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        num_of_each_class = np.zeros(10)
+        for _, yb in data("train"):
+            one_hot = torch.nn.functional.one_hot(yb, num_classes=10).to(torch.float32)
+            num_of_each_class += one_hot.sum(dim=0).numpy()
+        plt.bar(range(10), num_of_each_class)

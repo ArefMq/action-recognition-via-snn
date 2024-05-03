@@ -2,7 +2,7 @@ from typing import Any, Callable, Union
 
 import torch
 
-#FIXME: Refactor this code entirely
+# FIXME: Refactor this code entirely
 
 
 class CallbackInterface:
@@ -60,12 +60,14 @@ class CallbackFactory:
         return CallbackInterface()
 
 
-#TODO: This is progress printer or something
+# TODO: This is progress printer or something
 class DefaultCallback(CallbackInterface):
     def __init__(self) -> None:
         super().__init__()
         self.loss = []
         self.epoch_loss = []
+        self.batch_loss = []
+        self.result_confusion_matrix = None
 
     def train_before(self, **kwargs) -> None:
         print("===== Training Started ======")
@@ -74,7 +76,8 @@ class DefaultCallback(CallbackInterface):
         import matplotlib.pyplot as plt
 
         print("===== Training Finished =====")
-        plt.plot(self.loss)
+        # TODO: Add plotting for overal loss in red
+        plt.plot(self.epoch_loss)
         plt.yscale("log")
         plt.title("Loss")
         plt.xlabel("Batch")
@@ -83,6 +86,8 @@ class DefaultCallback(CallbackInterface):
 
     def test_before(self, **kwargs) -> None:
         print("====== Testing Started ======")
+        out_features = kwargs["net"].layers[-1].out_features
+        self.result_confusion_matrix = torch.zeros((out_features, out_features))
 
     def test_after(self, **kwargs) -> None:
         total_test_points = kwargs["total_test_points"]
@@ -91,28 +96,44 @@ class DefaultCallback(CallbackInterface):
         print(f"Accuracy: {correct_test_points}/{total_test_points} = {acc:.2f}%")
         print("===== Testing Finished ======")
 
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+
+        sns.heatmap(self.result_confusion_matrix, annot=True, fmt="g")
+        plt.xlabel("Predicted")
+        plt.ylabel("Expected")
+        plt.show()
+
+    def test_batch_after(self, **kwargs) -> None:
+        pred = kwargs["predicted"]
+        expc = kwargs["expected"]
+        for p, e in zip(pred, expc):
+            self.result_confusion_matrix[p, e] += 1
+
     def train_epoch_before(self, **kwargs) -> None:
-        print(f"Epoch {kwargs['epoch']} | ", end="")
+        epc = int(kwargs["epoch"]) + 1
+        print(f"Epoch {epc} | ", end="")
 
     def train_epoch_after(self, **kwargs) -> None:
-        epoch_loss_mean = torch.tensor(self.epoch_loss).mean().item()
+        epoch_loss_mean = torch.tensor(self.batch_loss).mean().item()
         print(f" | Loss: {epoch_loss_mean:.4f}")
-        self.epoch_loss = []
+        self.batch_loss = []
+        # TODO: add accuracy calculation here
 
     def train_batch_before(self, **kwargs) -> None:
-        self.epoch_loss = []
+        self.batch_loss = []
         batch_id = kwargs["batch_id"]
         if batch_id % 10 == 0:
-            print(f".", end="")
+            print(".", end="")
 
     def train_batch_after(self, **kwargs) -> None:
         loss = kwargs["loss"]
+        self.batch_loss.append(loss)
         self.epoch_loss.append(loss)
-        self.loss.append(loss)
 
 
-# TODO: Add network saver callback
+# TODO: Add network saver callback
 # TODO: Add early stopping callback
 # TODO: Add tensorboard callback
-# TODO: Add notification callback
-# TODO: Add progress bar callback
+# TODO: Add notification callback
+# TODO: Add progress bar callback
