@@ -331,6 +331,6 @@ venv/
 pip-selfcheck.json
 
 
-./data/*
+data/*
 
 
