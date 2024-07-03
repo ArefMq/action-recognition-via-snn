@@ -20,8 +20,8 @@ class NeuronBase(torch.nn.Module, ABC):
         if self.in_features is not None:
             self.in_features = int(self.in_features)
         self.out_features = int(kwargs["out_features"])
-        self.w_init_mean = kwargs.get('w_init_mean', W_INIT_MEAN)
-        self.w_init_std = kwargs.get('w_init_std', W_INIT_STD)
+        self.w_init_mean = kwargs.get("w_init_mean", W_INIT_MEAN)
+        self.w_init_std = kwargs.get("w_init_std", W_INIT_STD)
 
     @property
     def params(self) -> list[torch.nn.Parameter]:
@@ -43,3 +43,5 @@ class NeuronBase(torch.nn.Module, ABC):
     def __str__(self) -> str:
         return f"{self.name}({self.out_features})"
 
+    def details(self) -> str:
+        return f"{self.in_features} -> {self.out_features}"

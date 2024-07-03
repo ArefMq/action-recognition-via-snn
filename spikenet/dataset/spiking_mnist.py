@@ -4,42 +4,36 @@ from spikenet.image_to_spike_convertor import ImageToSpikeConvertor
 
 
 class SpikingMNISTDataLoader(ImageToSpikeConvertor):
-    RESIZE_SIZE = (16, 16)
+    DEFAULT_FRAME_SIZE = (28, 28)
+    CHANNELS = 1
 
     def __init__(self, *args, **kwargs):
-        if "resize_to" in kwargs:
-            self.RESIZE_SIZE = kwargs.pop("resize_to")
+        self.frame_size = kwargs.pop("frame_size", self.DEFAULT_FRAME_SIZE)
+        if isinstance(self.frame_size, int):
+            self.frame_size = (self.frame_size, self.frame_size)
+
+        _transforms = []
+        if self.frame_size != self.DEFAULT_FRAME_SIZE:
+            _transforms.append(torchvision.transforms.Resize(self.frame_size))
+        _transforms.append(transforms.ToTensor())
 
         super().__init__(
             *args,
             train_data=torchvision.datasets.MNIST(
-                root="./data",
+                root="./~data/mnist",
                 train=True,
-                transform=torchvision.transforms.Compose(
-                    [
-                        torchvision.transforms.Resize(self.RESIZE_SIZE),
-                        transforms.ToTensor(),
-                    ]
-                ),
+                transform=torchvision.transforms.Compose(_transforms),
                 download=True,
             ),
             test_data=torchvision.datasets.MNIST(
-                root="./data",
+                root="./~data/mnist",
                 train=False,
-                transform=torchvision.transforms.Compose(
-                    [
-                        torchvision.transforms.Resize(self.RESIZE_SIZE),
-                        transforms.ToTensor(),
-                    ]
-                ),
+                transform=torchvision.transforms.Compose(_transforms),
             ),
             **kwargs,
         )
 
     def x_transform(self, x):
         x = super().x_transform(x)
-        res = x.reshape(-1, self.time_scale, self.RESIZE_SIZE[0] * self.RESIZE_SIZE[1])
+        res = x.reshape(-1, self.CHANNELS, self.time_scale, *self.frame_size)
         return res
-
-
-spiking_mnist = SpikingMNISTDataLoader()

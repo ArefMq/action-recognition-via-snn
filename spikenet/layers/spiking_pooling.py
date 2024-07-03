@@ -1,65 +1,69 @@
 import torch
 import numpy as np
 
+from spikenet.functions import PollingReduction
 from spikenet.layers.spiking_base import SpikingNeuron
 
 
 class SpikingPoolingLayer(SpikingNeuron):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.stride: np.array = kwargs.get("stride", np.array((1, 2, 2)))
+        kernel_size = kwargs.get("kernel_size", np.array((1, 2, 2)))
+        if isinstance(kernel_size, int) or kernel_size.size == 1:
+            kernel_size = np.array((1, kernel_size, kernel_size))
+        self.kernel_size: np.ndarray = kernel_size
+        self.reduction: PollingReduction = kwargs.get(
+            "reduction", PollingReduction.MaxSpikeRate
+        )
 
-        if self.output_channels is None:
-            self.output_channels = self.input_channels
+    @property
+    def is_conv(self) -> bool:
+        return True
+    
+    def initialize_parameters(self) -> None:
+        pass
 
-        if self.stride is None:
-            self.stride = self.kernel_size
+    def clamp(self) -> None:
+        pass
 
-        if self.output_shape is None:
-            self.output_shape = [
-                int(1 + (i - k) / s)
-                for i, k, s in zip(self.input_shape, self.kernel_size, self.stride)
-            ]
+    def spike_forward(self, x: torch.Tensor) -> torch.Tensor:
+        (batch_size, nb_in_channels, nb_steps, *in_shape) = x.shape
+        out_shape = (
+            (np.array((nb_steps, *in_shape)) - self.kernel_size) // self.stride + 1
+        ).astype(int)
 
-        self.reduction = kwargs.get("reduction", "max")
-
-    def __str__(self):
-        # FIXME: handle other variations
-        return "P(" + str(self.kernel_size[0]) + ")"
-
-    def forward_function(self, x):
-        batch_size = x.shape[0]
-        nb_steps = x.shape[2]
         spk_rec = torch.zeros(
-            (batch_size, self.output_channels, nb_steps, *self.output_shape),
+            (batch_size, self.out_features, nb_steps, *out_shape),
             dtype=x.dtype,
             device=x.device,
         )
-
-        for t in range(nb_steps):
-            if self.reduction == "max":
-                pool_x_t = torch.nn.functional.max_pool2d(
-                    x[:, :, t, :, :],
-                    kernel_size=tuple(self.kernel_size),
-                    stride=tuple(self.stride),
-                )
-            elif self.reduction == "avg":
-                pool_x_t = torch.nn.functional.avg_pool2d(
-                    x[:, :, t, :, :],
-                    kernel_size=tuple(self.kernel_size),
-                    stride=tuple(self.stride),
-                )
-            else:
-                raise NotImplementedError()
-            spk_rec[:, :, t, :, :] = pool_x_t
-
-        # self.spk_rec_hist = spk_rec.detach().cpu().numpy()
-
-        if self.flatten_output:
-            output = torch.transpose(spk_rec, 1, 2).contiguous()
-            output = output.view(
-                batch_size, nb_steps, self.output_channels * np.prod(self.output_shape)
+        
+        if self.reduction == PollingReduction.MaxSpikeRate:
+            spk_rec = torch.nn.functional.max_pool3d(
+                x,
+                kernel_size=tuple(self.kernel_size),
+                stride=tuple(self.stride),
             )
+        elif self.reduction == PollingReduction.AvgSpikeRate:
+            spk_rec = torch.nn.functional.avg_pool3d(
+                x,
+                kernel_size=tuple(self.kernel_size),
+                stride=tuple(self.stride),
+            )
+        elif self.reduction == PollingReduction.SpikeTime:
+            raise NotImplementedError()
         else:
-            output = spk_rec
+            raise NotImplementedError()
+        return spk_rec, None
 
-        return output
+    def details(self) -> str:
+        txt = super().details()
+        ks = "x".join(map(str, self.kernel_size))
+        return f"pooling_{self.reduction.name}_{txt} {ks=}"
+
+    def plot_mem(*args, **kwargs):
+        pass
+
+    def plot_spk(*args, **kwargs):
+        pass

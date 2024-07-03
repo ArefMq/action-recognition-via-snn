@@ -1,9 +1,12 @@
 from dataclasses import dataclass, field
-from typing import Any, Iterator
+from typing import Any, Iterator, Optional, Union
+import numpy as np
 import torch
 from torch.nn.parameter import Parameter
 
 from spikenet.dataloader import DataLoader
+from spikenet.layers.flattening import Flatten
+from spikenet.layers.spiking_pooling import SpikingPoolingLayer
 from spikenet.tools.utils.callbacks_helper import CallbackFactory, CallbackTypes
 
 # TODO: add summary function to both Network and CompiledNetwork
@@ -17,16 +20,24 @@ class Network:
     @dataclass
     class _UncompiledLayer:
         module: torch.nn.Module
-        name: str
-        in_features: int | None = None
+        last_layer: Optional["Network._UncompiledLayer"] = None
         out_features: int | None = None
+
         aditional_args: dict[str, Any] = field(default_factory=dict)
-        borrowed_in_features: int | None = None
 
         def is_ready_to_compile(self) -> bool:
             if self.out_features is None:
-                return True
+                return True  # This is a function layer such as ReLU
             return self.get_in_features() is not None
+        
+        def get_in_size(self) -> tuple[int]:
+            return self.aditional_args.get("in_size", None)
+
+        def get_out_size(self) -> tuple[int]:
+            out_size = self.aditional_args.get("out_size", None)
+            if out_size is not None:
+                return out_size
+            return self.get_in_size()
 
         def get_in_features(self) -> int:
             if self.out_features is None:
@@ -55,9 +66,27 @@ class Network:
         def __str__(self) -> str:
             if self.out_features is not None:
                 text = f" ({self.get_in_features()} -> {self.out_features})"
+                if self.get_in_size() is not None:
+                    text += f" F[{self.get_in_size()} -> {self.get_out_size()}]"
             else:
                 text = ""
-            return f"{self.name}{text}"
+            cnv = "  Conv" if self.is_conv else ""
+            return f"{self.module.__name__}{text}{cnv}"
+        
+        def flatten_size(self) -> int:
+            out_size = self.get_out_size()
+            if out_size is None:
+                return self.get_out_features()
+            return int(np.prod(out_size) * self.get_out_features())
+        
+        @property
+        def is_conv(self) -> bool:
+            return self.IsConv(self.module)
+        
+        @staticmethod
+        def IsConv(module: torch.nn.Module) -> bool:
+            return hasattr(module, "is_conv") and module.is_conv
+            
 
     @dataclass
     class Criterion:
@@ -93,6 +122,7 @@ class Network:
         default=torch.device("cuda" if torch.cuda.is_available() else "cpu")
     )
     criterion: Criterion = field(default_factory=Criterion)
+    __is_compiled: bool = False
 
     def add_layer(
         self,
@@ -110,19 +140,45 @@ class Network:
             in_features (int, optional): the number of input features. Default is the output of the previous layer.
             **kwargs: additional arguments to pass to the layer
         """
+        # FIXME: this definately needs a refactor
+        self.__is_compiled = False
+        borrowed_in_features = None
+        if self.layers:
+            last_layer = self.layers[-1]
+            borrowed_in_features = self.layers[-1].get_out_features()
+
+            if last_layer.is_conv and not self._UncompiledLayer.IsConv(module):
+                borrowed_in_features = last_layer.flatten_size()
+                self.layers.append(
+                    self._UncompiledLayer(
+                        module=Flatten, out_features=borrowed_in_features,
+                        in_features=last_layer.get_out_features(),
+                    )
+                )
+        
+        if in_features is None and module == SpikingPoolingLayer:
+            out_features = borrowed_in_features
+
         self.layers.append(
             self._UncompiledLayer(
                 module=module,
-                name=module.__name__,
                 in_features=in_features,
                 out_features=out_features,
                 aditional_args=kwargs,
-                borrowed_in_features=self.layers[-1].get_out_features()
-                if len(self.layers) > 0
-                else None,
+                borrowed_in_features=borrowed_in_features,
             )
         )
         return self
+    
+    def build(self) -> "Network._CompiledNetwork":
+        compiled_layers = []
+        for layer in self.layers:
+            assert layer.is_ready_to_compile(), f"{layer} is not ready to compile."
+            new_layer = layer.compile().to(self.device)
+            compiled_layers.append(new_layer)
+        self.layers = torch.nn.ModuleList(compiled_layers)
+        self.__is_compiled = True
+        return Network._CompiledNetwork(self).to(self.device)
 
     @classmethod
     def from_parameters(cls, *args, **kwargs) -> "Network":
@@ -139,15 +195,6 @@ class Network:
         net.layers = layers
         return net
 
-    def build(self) -> "Network._CompiledNetwork":
-        compiled_layers = []
-        for layer in self.layers:
-            assert layer.is_ready_to_compile(), f"{layer} is not ready to compile."
-            new_layer = layer.compile().to(self.device)
-            compiled_layers.append(new_layer)
-        self.layers = torch.nn.ModuleList(compiled_layers)
-        return Network._CompiledNetwork(self).to(self.device)
-
     def fit_on(self, dataloader: DataLoader, **kwargs) -> "Network._CompiledNetwork":
         if self.layers[0].in_features is None:
             input_shape, _ = dataloader.shape
@@ -157,11 +204,14 @@ class Network:
         net.fit(dataloader, **kwargs)
         return net
 
-    def summary(self):
+    def summary(self, details: bool = False) -> None:
+        assert not details or self.__is_compiled, "Uncompiled network cannot show details"
         print(f"Network: {self.name} [Uncompiled Network]")
         print("-" * 50)
         for i, layer in enumerate(self.layers):
             print(f"{i}) {layer}")
+            if details:
+                print(f"    - {layer.details()}\n")
 
     class _CompiledNetwork(torch.nn.Module):
         def __init__(self, config: "Network"):

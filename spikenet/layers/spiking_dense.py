@@ -94,3 +94,7 @@ class SpikingDenseLayer(SpikingNeuron):
             ax.set_title("Output spikes (spike = white)")
             ax.set_xlabel("Time")
             ax.set_ylabel("Output spikes")
+
+    def details(self) -> str:
+        txt = super().details()
+        return f"dense_{txt}"
