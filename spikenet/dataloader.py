@@ -11,7 +11,7 @@ class DataLoader:
         batch_size: int = 128,
         shuffle_train: bool = True,
         shuffle_test: bool = False,
-    ):
+    ) -> None:
         # TODO: implement test-train-split if the test_data is None
         self.train_data: data.Dataset = train_data or self.get_train_data()
         self.test_data: data.Dataset = test_data or self.get_test_data()
@@ -23,7 +23,7 @@ class DataLoader:
         self.__shape: tuple[torch.Size, torch.Size] = None  # type: ignore
 
     def len(self, trail: str = "train") -> int:
-        return len(self.train_data) if trail == "train" else len(self.test_data)
+        return len(self.train_data) if trail == "train" else len(self.test_data)  # type: ignore
 
     def get_train_data(self) -> data.Dataset:
         raise NotImplementedError
@@ -95,7 +95,7 @@ class DataLoader:
         import numpy as np
 
         num_of_each_class = np.zeros(10)
-        for _, yb in data("train"):
+        for _, yb in data("train"):  # type: ignore[operator]
             one_hot = torch.nn.functional.one_hot(yb, num_classes=10).to(torch.float32)
             num_of_each_class += one_hot.sum(dim=0).numpy()
         plt.bar(range(10), num_of_each_class)

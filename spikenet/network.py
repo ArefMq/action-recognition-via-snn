@@ -23,7 +23,7 @@ class Network:
         last_layer: Optional["Network._UncompiledLayer"] = None
         out_features: int | None = None
 
-        aditional_args: dict[str, Any] = field(default_factory=dict)
+        additional_args: dict[str, Any] = field(default_factory=dict)
 
         def is_ready_to_compile(self) -> bool:
             if self.out_features is None:
@@ -31,15 +31,15 @@ class Network:
             return self.get_in_features() is not None
         
         def get_in_size(self) -> tuple[int]:
-            return self.aditional_args.get("in_size", None)
+            return self.additional_args.get("in_size", None)
 
         def get_out_size(self) -> tuple[int]:
-            out_size = self.aditional_args.get("out_size", None)
+            out_size = self.additional_args.get("out_size", None)
             if out_size is not None:
                 return out_size
             return self.get_in_size()
 
-        def get_in_features(self) -> int:
+        def get_in_features(self) -> int | None:
             if self.out_features is None:
                 return None
             return (
@@ -56,7 +56,7 @@ class Network:
             )
 
         def compile(self) -> torch.nn.Module:
-            kwargs = self.aditional_args
+            kwargs = self.additional_args
             if (infe := self.get_in_features()) is not None:
                 kwargs["in_features"] = infe
             if self.out_features is not None:
@@ -107,7 +107,7 @@ class Network:
         def get_loss_fn(self, net: torch.nn.Module) -> torch.nn.Module:
             return self.loss_fn()
 
-        def obsorb_parameters(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        def absorb_parameters(self, kwargs: dict[str, Any]) -> dict[str, Any]:
             res = {}
             for key, value in kwargs.items():
                 if hasattr(self, key):
@@ -140,7 +140,7 @@ class Network:
             in_features (int, optional): the number of input features. Default is the output of the previous layer.
             **kwargs: additional arguments to pass to the layer
         """
-        # FIXME: this definately needs a refactor
+        # FIXME: this definitely needs a refactor
         self.__is_compiled = False
         borrowed_in_features = None
         if self.layers:
@@ -164,7 +164,7 @@ class Network:
                 module=module,
                 in_features=in_features,
                 out_features=out_features,
-                aditional_args=kwargs,
+                additional_args=kwargs,
                 borrowed_in_features=borrowed_in_features,
             )
         )
@@ -183,14 +183,14 @@ class Network:
     @classmethod
     def from_parameters(cls, *args, **kwargs) -> "Network":
         cri = cls.Criterion()
-        kwargs = cri.obsorb_parameters(kwargs)
+        kwargs = cri.absorb_parameters(kwargs)
         net = cls(*args, criterion=cri, **kwargs)
         return net
 
     @classmethod
     def from_layers(cls, layers: torch.nn.ModuleList, *args, **kwargs) -> "Network":
         cri = cls.Criterion()
-        kwargs = cri.obsorb_parameters(kwargs)
+        kwargs = cri.absorb_parameters(kwargs)
         net = cls(*args, criterion=cri, **kwargs)
         net.layers = layers
         return net
@@ -214,7 +214,7 @@ class Network:
                 print(f"    - {layer.details()}\n")
 
     class _CompiledNetwork(torch.nn.Module):
-        def __init__(self, config: "Network"):
+        def __init__(self, config: "Network") -> None:
             super().__init__()
             self.config = config
             self.initialize_parameters()
@@ -257,8 +257,8 @@ class Network:
             callbacks = CallbackFactory.parse_callbacks(callbacks)
             if isinstance(dataloader, bool):
                 return super().train(dataloader)
-
-            kwargs = self.config.criterion.obsorb_parameters(kwargs)
+            
+            kwargs = self.config.criterion.absorb_parameters(kwargs)
             crit = self.config.criterion
 
             # get criterion functions
@@ -281,8 +281,8 @@ class Network:
                         call_type="train.batch.before",
                     )
 
-                    x_data: torch.Tensor = x_data.to(self.config.device)
-                    y_data: torch.Tensor = y_data.to(self.config.device)
+                    x_data = x_data.to(self.config.device)
+                    y_data = y_data.to(self.config.device)
 
                     # Forward pass
                     outputs = self.forward(x_data)
@@ -354,17 +354,17 @@ class Network:
             )
             return total, correct
 
-        def __repr__(self):
+        def __repr__(self) -> str:
             return f"{self.config.name}:\n{self.layers}"
 
-        def summary(self):
+        def summary(self) -> None:
             print(f"Network: {self.config.name}")
             print("-" * 50)
             for i, layer in enumerate(self.layers):
                 print(f"{i}) {layer}")
 
         # ~~~~~~~~ Plotting ~~~~~~~~
-        def plot_activity(self):
+        def plot_activity(self) -> None:
             import matplotlib.pyplot as plt
 
             for i, lyr in enumerate(self.layers):

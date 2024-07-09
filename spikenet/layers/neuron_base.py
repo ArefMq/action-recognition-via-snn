@@ -6,10 +6,23 @@ from spikenet.tools.configs import W_INIT_MEAN, W_INIT_STD
 
 
 class NeuronBase(torch.nn.Module, ABC):
+    """
+    Base class for all neuron layers used in the SpikeNet framework.
+
+    Args:
+        name (str): Name of the layer (default: <id>_<neuron_type>)
+        in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
+        out_features (int): Number of output features.
+        w_init_mean (float): Mean of the normal distribution used to initialize the weights.
+        w_init_std (float): Standard deviation of the normal distribution used to initialize the weights.
+    """
+    _id = 0
+
     @classmethod
     def __layer_id(cls) -> int:
-        if not hasattr(cls, "_id"):
-            cls._id = 0
+        """
+        Returns the unique id for the layer.
+        """
         cls._id += 1
         return cls._id
 
@@ -28,15 +41,19 @@ class NeuronBase(torch.nn.Module, ABC):
         return [p for p in self.__dict__.values() if isinstance(p, torch.nn.Parameter)]
 
     @abstractmethod
-    def forward(self, x: torch.Tensor) -> torch.Tensor: ...
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Runs the forward pass of the layer.
+        """
+        ...
 
-    def initialize_parameters(self):
+    def initialize_parameters(self) -> None:
         pass
 
-    def clamp(self):
+    def clamp(self) -> None:
         pass
 
-    def reset(self):
+    def reset(self) -> None:
         self.initialize_parameters()
         self.clamp()
 

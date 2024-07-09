@@ -6,6 +6,24 @@ from spikenet.dataloader import DataLoader
 
 
 class ImageToSpikeConvertor(DataLoader):
+    """
+    This class is a base for data loaders that convert images to spiking trains.
+    The main idea is apply either rate or time based coding to the input images,
+    and add an extra dimension for the time steps. The Spikes will be represented
+    as 1 and no-spikes as 0.
+
+    Args:
+        train_data: the training data. Default is None
+        test_data: the testing data. Default is None
+        batch_size: the batch size. Default is 128
+        shuffle_train: Shuffle the training data. Default is True
+        shuffle_test: Shuffle the testing data. Default is False
+        time_scale: the number of time steps for the spiking neurons. Default is 16
+        background_gain: The minimum value for the background. Default is 0.02
+        soft_rate_limit: The maximum value for the soft rate. Default is 0.8
+        apply_softening: whether to apply softening or not. Default is True
+        coding_type: the type of coding to be applied. (values: {"rate" | "time"} Default is "rate")
+    """
     def __init__(self, *args, **kwargs) -> None:
         self.__time_scale = int(kwargs.pop("time_scale", 16))
         self.__background_gain = float(kwargs.pop("background_gain", 0.02))
@@ -83,7 +101,7 @@ class SpikePlotter:
         vmax: float = 1,
         cmap: str = "gray",
         title: str | None = None,
-    ):
+    ) -> str:
         fig, ax = plt.subplots()
         if isinstance(data, torch.Tensor):
             data = data.detach().numpy()
@@ -92,10 +110,10 @@ class SpikePlotter:
         if title:
             ax.set_title(title)
 
-        def init():
+        def init() -> tuple[plt.Image]:
             return (img,)
 
-        def update(frame):
+        def update(frame) -> tuple[plt.Image]:
             img.set_data(data[frame])
             return (img,)
 
@@ -106,7 +124,7 @@ class SpikePlotter:
         plt.close()
         return res
 
-    def plot_spikes_history_1d(self, spikes, title: str | None = None):
+    def plot_spikes_history_1d(self, spikes, title: str | None = None) -> None:
         plt.figure()
         plt.plot(spikes)
         plt.title(title or "1D Spikes")

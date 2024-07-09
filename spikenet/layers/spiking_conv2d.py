@@ -5,13 +5,35 @@ from spikenet.tools.configs import EPSILON
 
 
 class SpikingConv2D(SpikingDenseLayer):
+    """
+    Spiking Convolutional Layer: This layer is used to create a convolutional layer of spiking neurons.
+
+
+    Args:
+        name (str): Name of the layer (default: <id>_<neuron_type>)
+        in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
+        out_features (int): Number of output features.
+        w_init_mean (float): Mean of the normal distribution used to initialize the weights.
+        w_init_std (float): Standard deviation of the normal distribution used to initialize the weights.
+        spike_fn (Callable): The spike function to use (default: SurrogateHeaviside.apply)
+        time_reduction (str or TimeReduction): The time reduction method to use (default: TimeReduction.NoTimeReduction)
+        beta_init_std (float): Standard deviation of the normal distribution used to initialize the beta parameter.
+        beta_init_mean (float): Mean of the normal distribution used to initialize the beta parameter.
+        b_init_std (float): Standard deviation of the normal distribution used to initialize the b parameter.
+        b_init_mean (float): Mean of the normal distribution used to initialize the b parameter.
+        mem_clamp (bool): Whether to clamp the membrane potential between 0 and 1 (default: True)
+        stride (int or np.ndarray): The stride of the convolution operation (default: np.array((1, 1, 1)))
+        padding (int or np.ndarray): The padding of the convolution operation (default: np.array((0, 0, 0)))
+        dilation (int or np.ndarray): The dilation of the convolution operation (default: np.array((1, 1, 1)))
+        kernel_size (int or np.ndarray): The size of the convolution kernel (default: np.array((1, 3, 3)))
+    """
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.stride: np.array = kwargs.get("stride", np.array((1, 1, 1)))
-        self.padding: np.array = kwargs.get("padding", np.array((0, 0, 0)))
-        self.dilation: np.array = kwargs.get("dilation", np.array((1, 1, 1)))
+        self.stride: np.ndarray = kwargs.get("stride", np.array((1, 1, 1)))
+        self.padding: np.ndarray = kwargs.get("padding", np.array((0, 0, 0)))
+        self.dilation: np.ndarray = kwargs.get("dilation", np.array((1, 1, 1)))
 
-        kernel_size: np.array = kwargs.get("kernel_size", np.array((1, 3, 3)))
+        kernel_size: np.ndarray = kwargs.get("kernel_size", np.array((1, 3, 3)))
         if isinstance(kernel_size, int) or kernel_size.size == 1:
             kernel_size = np.array((1, kernel_size, kernel_size))
         self.kernel_size = kernel_size
@@ -21,6 +43,10 @@ class SpikingConv2D(SpikingDenseLayer):
         return True
 
     def initialize_parameters(self) -> None:
+        """
+        Initializes the weights and parameters of the layer.
+        This function should be called before training the network from scratch.
+        """
         self.w = torch.nn.Parameter(
             torch.empty((self.out_features, self.in_features, *self.kernel_size)),
             requires_grad=True,
@@ -39,6 +65,7 @@ class SpikingConv2D(SpikingDenseLayer):
         torch.nn.init.normal_(self.b, mean=self.b_init_mean, std=self.b_init_std)
 
     def _apply_conv(self, x: torch.Tensor) -> torch.Tensor:
+        assert self.w is not None, "Parameters w are not initialized"
         return torch.nn.functional.conv3d(
             x,
             self.w,
@@ -58,11 +85,15 @@ class SpikingConv2D(SpikingDenseLayer):
             self.padding[1] : self.padding[1] + out_shape[1],
         ]
 
-    def spike_forward(self, x: torch.Tensor) -> torch.Tensor:
+    def spike_forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor | None]:
+        assert self.w is not None, "Parameters w are not initialized"
+        assert self.beta is not None, "Parameters beta are not initialized"
+        assert self.b is not None, "Parameters b are not initialized"
+
         # FIXME: fix this for all layers (make it shorter)
         (batch_size, nb_in_channels, nb_steps, *out_shape) = x.shape
         conv_x = self._apply_conv(x)
-        conv_x = self._crop_output(conv_x, out_shape)
+        conv_x = self._crop_output(conv_x, (out_shape[0], out_shape[1]))
 
         # membrane potential
         mem = torch.zeros(
@@ -100,7 +131,6 @@ class SpikingConv2D(SpikingDenseLayer):
             input_ = conv_x[:, :, t, :, :]
 
             # membrane potential update
-            
 
             mem = (mem - rst) * self.beta + input_ * (1.0 - self.beta)
             mem_rec[:, :, t, :] = mem
@@ -115,10 +145,9 @@ class SpikingConv2D(SpikingDenseLayer):
         txt = super().details()
         ks = "x".join(map(str, self.kernel_size))
         return f"conv_{txt} {ks=}"
-    
-    def plot_mem(*args, **kwargs):
-        pass
-    def plot_spk(*args, **kwargs):
-        pass
-        
 
+    def plot_mem(*args, **kwargs) -> None:
+        pass
+
+    def plot_spk(*args, **kwargs) -> None:
+        pass

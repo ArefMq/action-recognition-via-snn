@@ -1,10 +1,15 @@
+import torch
 import torchvision
 import torchvision.transforms as transforms
 from spikenet.dataloader import DataLoader
 
 
 class MNISTDataLoader(DataLoader):
-    def __init__(self):
+    """
+    This class is loading the MNIST dataset from torchvision.datasets.MNIST as a DataLoader which would
+    be compatible with the rest of the SpikeNet library.
+    """
+    def __init__(self) -> None:
         super().__init__(
             train_data=torchvision.datasets.MNIST(
                 root="./data",
@@ -17,7 +22,9 @@ class MNISTDataLoader(DataLoader):
             ),
         )
 
-    def x_transform(self, x):
+    def x_transform(self, x: torch.Tensor) -> torch.Tensor:
+        # This will be called within the DataLoader class, in order to
+        # flatten the input data into a 1D tensor.
         return x.reshape(-1, 28 * 28)
 
 

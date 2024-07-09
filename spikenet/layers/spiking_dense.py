@@ -6,11 +6,32 @@ from spikenet.tools.configs import EPSILON
 
 
 class SpikingDenseLayer(SpikingNeuron):
+    """
+    Spiking Dense Layer: This layer is used to create a dense layer of spiking neurons.
+
+    Args:
+        name (str): Name of the layer (default: <id>_<neuron_type>)
+        in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
+        out_features (int): Number of output features.
+        w_init_mean (float): Mean of the normal distribution used to initialize the weights.
+        w_init_std (float): Standard deviation of the normal distribution used to initialize the weights.
+        spike_fn (Callable): The spike function to use (default: SurrogateHeaviside.apply)
+        time_reduction (str or TimeReduction): The time reduction method to use (default: TimeReduction.NoTimeReduction)
+        beta_init_std (float): Standard deviation of the normal distribution used to initialize the beta parameter.
+        beta_init_mean (float): Mean of the normal distribution used to initialize the beta parameter.
+        b_init_std (float): Standard deviation of the normal distribution used to initialize the b parameter.
+        b_init_mean (float): Mean of the normal distribution used to initialize the b parameter.
+        mem_clamp (bool): Whether to clamp the membrane potential between 0 and 1 (default: True)
+    """
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.mem_clamp = kwargs.get("mem_clamp", True)
 
     def initialize_parameters(self) -> None:
+        """
+        Initializes the weights and parameters of the layer.
+        This function should be called before training the network from scratch.
+        """
         self.w = torch.nn.Parameter(
             torch.empty((self.in_features, self.out_features)), requires_grad=True
         )
@@ -27,7 +48,11 @@ class SpikingDenseLayer(SpikingNeuron):
         )
         torch.nn.init.normal_(self.b, mean=self.b_init_mean, std=self.b_init_std)
 
-    def spike_forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def spike_forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor | None]:
+        assert self.w is not None, "Parameters w are not initialized"
+        assert self.beta is not None, "Parameters beta are not initialized"
+        assert self.b is not None, "Parameters b are not initialized"
+
         batch_size, nb_steps = x.shape[0], x.shape[1]
         h = torch.einsum("abc,cd->abd", x, self.w)
 

@@ -64,10 +64,10 @@ class CallbackFactory:
 class DefaultCallback(CallbackInterface):
     def __init__(self) -> None:
         super().__init__()
-        self.loss = []
-        self.epoch_loss = []
-        self.batch_loss = []
-        self.result_confusion_matrix = None
+        self.loss: list[float] = []
+        self.epoch_loss: list[float] = []
+        self.batch_loss: list[float] = []
+        self.result_confusion_matrix: torch.Tensor | None = None
 
     def train_before(self, **kwargs) -> None:
         print("===== Training Started ======")
@@ -96,7 +96,7 @@ class DefaultCallback(CallbackInterface):
         print(f"Accuracy: {correct_test_points}/{total_test_points} = {acc:.2f}%")
         print("===== Testing Finished ======")
 
-        import seaborn as sns
+        import seaborn as sns  # type: ignore
         import matplotlib.pyplot as plt
 
         sns.heatmap(self.result_confusion_matrix, annot=True, fmt="g")
@@ -105,6 +105,8 @@ class DefaultCallback(CallbackInterface):
         plt.show()
 
     def test_batch_after(self, **kwargs) -> None:
+        if self.result_confusion_matrix is None:
+            return
         pred = kwargs["predicted"]
         expc = kwargs["expected"]
         for p, e in zip(pred, expc):

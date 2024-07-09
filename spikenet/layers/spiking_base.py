@@ -8,20 +8,48 @@ from spikenet.tools.heaviside import SurrogateHeaviside
 
 
 class SpikingNeuron(NeuronBase, ABC):
+    """
+    Base class for all spiking neuron layers used in the SpikeNet framework.
+
+    Args:
+        name (str): Name of the layer (default: <id>_<neuron_type>)
+        in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
+        out_features (int): Number of output features.
+        w_init_mean (float): Mean of the normal distribution used to initialize the weights.
+        w_init_std (float): Standard deviation of the normal distribution used to initialize the weights.
+        spike_fn (Callable): The spike function to use (default: SurrogateHeaviside.apply)
+        time_reduction (str or TimeReduction): The time reduction method to use (default: TimeReduction.NoTimeReduction)
+        beta_init_std (float): Standard deviation of the normal distribution used to initialize the beta parameter.
+        beta_init_mean (float): Mean of the normal distribution used to initialize the beta parameter.
+        b_init_std (float): Standard deviation of the normal distribution used to initialize the b parameter.
+        b_init_mean (float): Mean of the normal distribution used to initialize the b parameter.
+
+    NOTE: TimeReduction method is used to convert spiking activity to a single value. This is used either to
+    feed the spiking network to a non-spiking network or to use the output of the spiking network in a decision-making
+    process. The default value is TimeReduction.NoTimeReduction which means the output of the spiking network is the
+    spikes themselves. Other options are:
+        - SpikeRate: the output is the sum of spikes over time normalized by the number of time steps
+        - SpikeTime: the output is the time of the first spike
+        - MemRecMax: the output is the maximum value of the membrane potential over time
+        - MemRecMean: the output is the mean value of the membrane potential over time
+
+    NOTE: You can also provide a custom time reduction method by passing a callable function to the time_reduction argument.
+    """
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.spike_fn = kwargs.get("spike_fn", SurrogateHeaviside.apply)
-        self.__mem_rec: torch.Tensor = None
-        self.__spike_rec: torch.Tensor = None
+        self.__mem_rec: torch.Tensor | None = None
+        self.__spike_rec: torch.Tensor | None = None
         time_reduction = kwargs.get("time_reduction", TimeReduction.NoTimeReduction)
         self.__time_reduction: TimeReduction | Callable = (
             TimeReduction(time_reduction)
             if isinstance(time_reduction, str)
             else time_reduction
         )
-        self.w: torch.nn.Parameter = None
-        self.beta: torch.nn.Parameter = None
-        self.b: torch.nn.Parameter = None
+        self.w: torch.nn.Parameter | None = None
+        self.beta: torch.nn.Parameter | None = None
+        self.b: torch.nn.Parameter | None = None
 
         self.beta_init_std = kwargs.get("beta_init_std", 0.01)
         self.beta_init_mean = kwargs.get("beta_init_mean", 0.7)
@@ -46,6 +74,7 @@ class SpikingNeuron(NeuronBase, ABC):
         Returns the membrane potential record of the neuron
         The membrane potential record is a tensor of shape (batch_size, time_steps, *out_features)
         """
+        assert self.__mem_rec is not None, "mem_rec is not initialized"
         return self.__mem_rec
 
     @property
@@ -54,17 +83,21 @@ class SpikingNeuron(NeuronBase, ABC):
         Returns the spike record of the neuron
         The spike record is a binary tensor of shape (batch_size, time_steps, *out_features)
         """
+        assert self.__spike_rec is not None, "spike_rec is not initialized"
         return self.__spike_rec
 
     @property
     def w_norm(self) -> torch.Tensor:
+        assert self.w is not None, "Parameters w are not initialized"
         norm = (self.w**2).sum(0)
         assert not torch.isnan(norm).any()
         return norm
 
     def clamp(self) -> None:
-        self.beta.data.clamp_(0.0, 1.0)
-        self.b.data.clamp_(min=0.0)
+        if self.beta is not None:
+            self.beta.data.clamp_(0.0, 1.0)
+        if self.b is not None:
+            self.b.data.clamp_(min=0.0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -89,7 +122,9 @@ class SpikingNeuron(NeuronBase, ABC):
         return res
 
     @abstractmethod
-    def spike_forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def spike_forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """
         The forward pass of the neuron
         :param x: the input tensor
@@ -98,7 +133,7 @@ class SpikingNeuron(NeuronBase, ABC):
         ...
 
     @abstractmethod
-    def initialize_parameters(self):
+    def initialize_parameters(self) -> None:
         """
         Initialize the parameters of the neuron
         """
