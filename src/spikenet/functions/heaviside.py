@@ -1,4 +1,5 @@
 from typing import Any
+
 import torch
 
 
@@ -26,4 +27,4 @@ class SurrogateHeaviside(torch.autograd.Function):
             * SurrogateHeaviside.gradient_method(SurrogateHeaviside.sigma * input)
             * SurrogateHeaviside.gradient_method(-SurrogateHeaviside.sigma * input)
         )
-        return grad
+        return grad  # noqa: RET504
