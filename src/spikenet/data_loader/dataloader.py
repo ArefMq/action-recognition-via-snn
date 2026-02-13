@@ -1,4 +1,6 @@
-from typing import Any, Generator
+from collections.abc import Generator
+from typing import Any
+
 import torch
 import torch.utils.data as data
 
@@ -31,7 +33,6 @@ class DataLoader:
     def get_test_data(self) -> data.Dataset:
         raise NotImplementedError
 
-    # Ready to be overridden
     def x_transform(self, x: Any) -> Any:
         return x
 
@@ -55,9 +56,7 @@ class DataLoader:
         return self.__test_loader
 
     def __call__(self, trail: str) -> Generator[Any, Any, None]:
-        for x_data, y_data in (
-            self.__train_loader if trail == "train" else self.__test_loader
-        ):
+        for x_data, y_data in self.__train_loader if trail == "train" else self.__test_loader:
             yield self.x_transform(x_data), self.y_transform(y_data)
 
     def sample(
@@ -88,14 +87,3 @@ class DataLoader:
 
     def __repr__(self) -> str:
         return f"DataLoader: {self.train_data}, {self.test_data}"
-
-    def analyze(self) -> None:
-        # fixme: this is a temporary solution
-        import matplotlib.pyplot as plt
-        import numpy as np
-
-        num_of_each_class = np.zeros(10)
-        for _, yb in data("train"):  # type: ignore[operator]
-            one_hot = torch.nn.functional.one_hot(yb, num_classes=10).to(torch.float32)
-            num_of_each_class += one_hot.sum(dim=0).numpy()
-        plt.bar(range(10), num_of_each_class)
