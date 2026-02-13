@@ -1,0 +1,96 @@
+[project]
+name = "spikenet"
+version = "2.0.0"
+description = "Action recognition via Spiking Neural Networks."
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+license = { text = "MIT" }
+authors = [{ name = "Aref Moqadam Mehr", email = "aref.moqadam@gmail.com" }]
+
+dependencies = [
+    "numpy>=2.4.2",
+    "torch>=2.10.0",
+    "torchvision>=0.25.0",
+]
+
+
+[project.urls]
+Repository = "https://github.com/ArefMq/action-recognition-via-snn"
+
+
+# TODO: Add this once we have the SNN library
+# [project.scripts]
+# sanwo = "sanwo_relay.app:main"
+
+
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"
+
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.114,<7.0.0",
+    "ipython>=8.38.0,<9.0.0",
+    "pre-commit>=3.8,<4.0.0",
+    "pytest>=8.2,<9.0.0",
+    "ruff>=0.14.13",
+    "mypy>=1.19.1",
+]
+research = [
+    "jupyter>=1.1.1",
+    "seaborn>=0.13.2",
+]
+# TODO: Add these once we have a proper build process
+# build = [
+#     "awscli>=1.44.14,<2.0.0",
+#     "tomli>=2.3.0,<3.0.0",
+#     "tomli-w>=1.2.0,<2.0.0",
+#     "twine>=6.1.0,<7.0.0",
+# ]
+
+
+[tool.pytest.ini_options]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+pythonpath = "src"
+
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle: basic style checks (PEP 8)
+    "F",   # Pyflakes: error detection (undefined names, unused imports/variables, redefinitions)
+    "I",   # isort: consistent import sorting and grouping
+    "B",   # flake8-bugbear: catch common bugs and code smells
+    "S",   # Bandit: security best-practice checks
+    "UP",  # pyupgrade: modernise syntax for the target Python version
+    "RUF", # Ruff-specific rules: pragmatic correctness and consistency
+    "ISC", # detect accidental implicit string concatenation
+    "TRY", # improve exception handling patterns
+    "SIM", # flake8-simplify: prefer simpler, clearer constructs
+    "C4",  # flake8-comprehensions: clearer, more efficient comprehensions
+    "RET", # enforce consistent return statements/paths
+    "ARG", # flag unused function/method arguments
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8 # limit number of branching points
+
+[tool.ruff.lint.per-file-ignores]
+"*" = [
+    "ARG001", # Unused function argument (fixtures or placeholders)
+    "S101",   # Allow use of `assert` in tests
+    "SIM108", # Use of ternary operator instead of if statement
+    "TRY003", # Avoid specifying long messages outside the exception class
+]
+"__init__.py" = [
+    "F401", # Unused imports
+    "F403", # Wildcard imports
+]
+"tests/*" = ["S311"] # Pseudo-random generators in tests are fine
+
+
+[tool.mypy]
+mypy_path = "stubs"
