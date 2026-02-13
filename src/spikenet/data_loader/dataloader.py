@@ -22,10 +22,10 @@ class DataLoader:
         self.shuffle_test = shuffle_test
         self.__train_loader = self.train_dataloader()
         self.__test_loader = self.test_dataloader()
-        self.__shape: tuple[torch.Size, torch.Size] = None  # type: ignore
+        self.__shape: tuple[torch.Size, torch.Size] = None
 
     def len(self, trail: str = "train") -> int:
-        return len(self.train_data) if trail == "train" else len(self.test_data)  # type: ignore
+        return len(self.train_data) if trail == "train" else len(self.test_data)
 
     def get_train_data(self) -> data.Dataset:
         raise NotImplementedError
