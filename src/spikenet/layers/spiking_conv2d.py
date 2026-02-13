@@ -1,7 +1,10 @@
 import numpy as np
 import torch
+from torch import Tensor
+
 from spikenet.layers.spiking_dense import SpikingDenseLayer
 from spikenet.tools.configs import EPSILON
+from spikenet.tools.window import window_to_and_array
 
 
 class SpikingConv2D(SpikingDenseLayer):
@@ -10,7 +13,7 @@ class SpikingConv2D(SpikingDenseLayer):
 
 
     Args:
-        name (str): Name of the layer (default: <id>_<neuron_type>)
+        name (str): Name of the layer (default: "Conv2D")
         in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
         out_features (int): Number of output features.
         w_init_mean (float): Mean of the normal distribution used to initialize the weights.
@@ -25,30 +28,20 @@ class SpikingConv2D(SpikingDenseLayer):
         stride (int or np.ndarray): The stride of the convolution operation (default: np.array((1, 1, 1)))
         padding (int or np.ndarray): The padding of the convolution operation (default: np.array((0, 0, 0)))
         dilation (int or np.ndarray): The dilation of the convolution operation (default: np.array((1, 1, 1)))
-        kernel_size (int or np.ndarray): The size of the convolution kernel (default: np.array((1, 3, 3)))
+        kernel (int or np.ndarray): The size of the convolution kernel (default: np.array((1, 3, 3)))
     """
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.stride: np.ndarray = kwargs.get("stride", np.array((1, 1, 1)))
-        self.padding: np.ndarray = kwargs.get("padding", np.array((0, 0, 0)))
-        self.dilation: np.ndarray = kwargs.get("dilation", np.array((1, 1, 1)))
-
-        kernel_size: np.ndarray = kwargs.get("kernel_size", np.array((1, 3, 3)))
-        if isinstance(kernel_size, int) or kernel_size.size == 1:
-            kernel_size = np.array((1, kernel_size, kernel_size))
-        self.kernel_size = kernel_size
-
-    @property
-    def is_conv(self) -> bool:
-        return True
+        self.stride = window_to_and_array(kwargs.get("stride", (1, 1, 1)))
+        self.padding = window_to_and_array(kwargs.get("padding", (0, 0, 0)))
+        self.dilation = window_to_and_array(kwargs.get("dilation", (1, 1, 1)))
+        self.kernel = window_to_and_array(kwargs.get("kernel", (1, 3, 3)))
 
     def initialize_parameters(self) -> None:
-        """
-        Initializes the weights and parameters of the layer.
-        This function should be called before training the network from scratch.
-        """
+        """Initializes the weights and parameters of the layer."""
         self.w = torch.nn.Parameter(
-            torch.empty((self.out_features, self.in_features, *self.kernel_size)),
+            torch.empty((self.out_features, self.in_features, *self.kernel)),
             requires_grad=True,
         )
         self.beta = torch.nn.Parameter(torch.empty(1), requires_grad=True)
@@ -59,24 +52,20 @@ class SpikingConv2D(SpikingDenseLayer):
             mean=self.w_init_mean,
             std=self.w_init_std * np.sqrt(1.0 / self.in_features),
         )
-        torch.nn.init.normal_(
-            self.beta, mean=self.beta_init_mean, std=self.beta_init_std
-        )
+        torch.nn.init.normal_(self.beta, mean=self.beta_init_mean, std=self.beta_init_std)
         torch.nn.init.normal_(self.b, mean=self.b_init_mean, std=self.b_init_std)
 
-    def _apply_conv(self, x: torch.Tensor) -> torch.Tensor:
+    def _apply_conv(self, x: Tensor) -> Tensor:
         assert self.w is not None, "Parameters w are not initialized"
         return torch.nn.functional.conv3d(
             x,
             self.w,
-            padding=tuple(
-                np.ceil(((self.kernel_size - 1) * self.dilation) / 2).astype(int)
-            ),
+            padding=tuple(np.ceil(((self.kernel - 1) * self.dilation) / 2).astype(int)),
             dilation=tuple(self.dilation),
             stride=tuple(self.stride),
         )
 
-    def _crop_output(self, x: torch.Tensor, out_shape: tuple[int, int]) -> torch.Tensor:
+    def _crop_output(self, x: Tensor, out_shape: tuple[int, int]) -> Tensor:
         return x[
             :,  # batch_size
             :,  # out_channels
@@ -85,12 +74,7 @@ class SpikingConv2D(SpikingDenseLayer):
             self.padding[1] : self.padding[1] + out_shape[1],
         ]
 
-    def spike_forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor | None]:
-        assert self.w is not None, "Parameters w are not initialized"
-        assert self.beta is not None, "Parameters beta are not initialized"
-        assert self.b is not None, "Parameters b are not initialized"
-
-        # FIXME: fix this for all layers (make it shorter)
+    def spike_forward(self, x: Tensor) -> tuple[Tensor, Tensor | None]:
         (batch_size, nb_in_channels, nb_steps, *out_shape) = x.shape
         conv_x = self._apply_conv(x)
         conv_x = self._crop_output(conv_x, (out_shape[0], out_shape[1]))
@@ -131,23 +115,11 @@ class SpikingConv2D(SpikingDenseLayer):
             input_ = conv_x[:, :, t, :, :]
 
             # membrane potential update
-
             mem = (mem - rst) * self.beta + input_ * (1.0 - self.beta)
             mem_rec[:, :, t, :] = mem
 
-            mthr = torch.einsum("abcd,b->abcd", mem, 1.0 / (norm + EPSILON)) - flatten_b
-            spk = self.spike_fn(mthr)
+            m_threshold = torch.einsum("abcd,b->abcd", mem, 1.0 / (norm + EPSILON)) - flatten_b
+            spk = self.spike_fn(m_threshold)
             spk_rec[:, :, t, :, :] = spk
 
         return spk_rec, mem_rec
-
-    def details(self) -> str:
-        txt = super().details()
-        ks = "x".join(map(str, self.kernel_size))
-        return f"conv_{txt} {ks=}"
-
-    def plot_mem(*args, **kwargs) -> None:
-        pass
-
-    def plot_spk(*args, **kwargs) -> None:
-        pass
