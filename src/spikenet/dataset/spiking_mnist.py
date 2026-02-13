@@ -1,16 +1,18 @@
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from spikenet.image_to_spike_convertor import ImageToSpikeConvertor
+
+from spikenet.data import ImageToSpikeConverter
 
 
-class SpikingMNISTDataLoader(ImageToSpikeConvertor):
+class SpikingMNISTDataLoader(ImageToSpikeConverter):
     """
     This class is loading the MNIST dataset from torchvision.datasets.MNIST as a DataLoader which would
     be compatible with the rest of the SpikeNet library. This class, will convert the input images into
     spiking trains based on the given time_scale and coding_type. The default image size is 28x28. If a
     different size is given, the images will be resized.
     """
+
     DEFAULT_FRAME_SIZE = (28, 28)
     CHANNELS = 1
 
@@ -52,5 +54,4 @@ class SpikingMNISTDataLoader(ImageToSpikeConvertor):
 
     def x_transform(self, x: torch.Tensor) -> torch.Tensor:
         x = super().x_transform(x)
-        res = x.reshape(-1, self.CHANNELS, self.time_scale, *self.frame_size)
-        return res
+        return x.reshape(-1, self.CHANNELS, self.time_scale, *self.frame_size)
