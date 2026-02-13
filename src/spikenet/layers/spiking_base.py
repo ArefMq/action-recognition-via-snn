@@ -1,10 +1,14 @@
 from abc import ABC, abstractmethod
-from typing import Callable
+from collections.abc import Callable
 
 import torch
-from spikenet.functions import TimeReduction
+from torch import Tensor
+
 from spikenet.layers.neuron_base import NeuronBase
 from spikenet.tools.heaviside import SurrogateHeaviside
+from spikenet.tools.time_reduction import no_time_reduction
+
+TimeReductionFunction = Callable[["SpikingNeuron", Tensor, Tensor], Tensor]
 
 
 class SpikingNeuron(NeuronBase, ABC):
@@ -12,181 +16,153 @@ class SpikingNeuron(NeuronBase, ABC):
     Base class for all spiking neuron layers used in the SpikeNet framework.
 
     Args:
-        name (str): Name of the layer (default: <id>_<neuron_type>)
+        name (str): Name of the layer (default: "SpikingNeuron")
         in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
         out_features (int): Number of output features.
         w_init_mean (float): Mean of the normal distribution used to initialize the weights.
         w_init_std (float): Standard deviation of the normal distribution used to initialize the weights.
         spike_fn (Callable): The spike function to use (default: SurrogateHeaviside.apply)
-        time_reduction (str or TimeReduction): The time reduction method to use (default: TimeReduction.NoTimeReduction)
+        time_reduction (Callable | None): The time reduction method to use (default: None)
         beta_init_std (float): Standard deviation of the normal distribution used to initialize the beta parameter.
         beta_init_mean (float): Mean of the normal distribution used to initialize the beta parameter.
         b_init_std (float): Standard deviation of the normal distribution used to initialize the b parameter.
         b_init_mean (float): Mean of the normal distribution used to initialize the b parameter.
-
-    NOTE: TimeReduction method is used to convert spiking activity to a single value. This is used either to
-    feed the spiking network to a non-spiking network or to use the output of the spiking network in a decision-making
-    process. The default value is TimeReduction.NoTimeReduction which means the output of the spiking network is the
-    spikes themselves. Other options are:
-        - SpikeRate: the output is the sum of spikes over time normalized by the number of time steps
-        - SpikeTime: the output is the time of the first spike
-        - MemRecMax: the output is the maximum value of the membrane potential over time
-        - MemRecMean: the output is the mean value of the membrane potential over time
-
-    NOTE: You can also provide a custom time reduction method by passing a callable function to the time_reduction argument.
     """
 
     def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
+        super().__init__(name=kwargs.pop("name", "SpikingNeuron"), **kwargs)
         self.spike_fn = kwargs.get("spike_fn", SurrogateHeaviside.apply)
-        self.__mem_rec: torch.Tensor | None = None
-        self.__spike_rec: torch.Tensor | None = None
-        time_reduction = kwargs.get("time_reduction", TimeReduction.NoTimeReduction)
-        self.__time_reduction: TimeReduction | Callable = (
-            TimeReduction(time_reduction)
-            if isinstance(time_reduction, str)
-            else time_reduction
-        )
+        self.time_reduction_fn: TimeReductionFunction = kwargs.get("time_reduction", no_time_reduction)
+
+        # Internal attributes .....................
+        self.__mem_rec: Tensor | None = None
+        self.__spike_rec: Tensor | None = None
+
+        # Learning weights and parameters ........
         self.w: torch.nn.Parameter | None = None
         self.beta: torch.nn.Parameter | None = None
         self.b: torch.nn.Parameter | None = None
 
+        # Initialization parameters ..............
         self.beta_init_std = kwargs.get("beta_init_std", 0.01)
         self.beta_init_mean = kwargs.get("beta_init_mean", 0.7)
         self.b_init_std = kwargs.get("b_init_std", 0.01)
         self.b_init_mean = kwargs.get("b_init_mean", 1.0)
 
     @property
-    def is_spiking(self) -> bool:
-        return True
+    def mem_rec(self) -> Tensor:
+        """Membrane potential record of the neuron.
 
-    @property
-    def time_reduction_method(self) -> str:
-        return (
-            self.__time_reduction.name
-            if isinstance(self.__time_reduction, TimeReduction)
-            else "CustomReduction"
-        )
+        Returns:
+            a tensor of shape (batch_size, time_steps, *out_features)
 
-    @property
-    def mem_rec(self) -> torch.Tensor:
-        """
-        Returns the membrane potential record of the neuron
-        The membrane potential record is a tensor of shape (batch_size, time_steps, *out_features)
+        Raises:
+            AssertionError: if mem_rec is not initialized
         """
         assert self.__mem_rec is not None, "mem_rec is not initialized"
         return self.__mem_rec
 
     @property
-    def spike_rec(self) -> torch.Tensor:
-        """
-        Returns the spike record of the neuron
-        The spike record is a binary tensor of shape (batch_size, time_steps, *out_features)
+    def spike_rec(self) -> Tensor:
+        """Spike record of the neuron.
+
+        Returns:
+            a binary tensor of shape (batch_size, time_steps, *out_features)
+
+        Raises:
+            AssertionError: if spike_rec is not initialized
         """
         assert self.__spike_rec is not None, "spike_rec is not initialized"
         return self.__spike_rec
 
     @property
-    def w_norm(self) -> torch.Tensor:
+    def w_norm(self) -> Tensor:
+        """Weight norm of the neuron.
+
+        Returns:
+            a tensor of shape (out_features,)
+
+        Raises:
+            AssertionError: if w is not initialized
+            AssertionError: if w_norm contains NaN values
+        """
         assert self.w is not None, "Parameters w are not initialized"
         norm = (self.w**2).sum(0)
-        assert not torch.isnan(norm).any()
+        self._check_nan(norm, "w_norm")
         return norm
 
     def clamp(self) -> None:
+        """Implementation of the parameter clamping for the neuron."""
         if self.beta is not None:
             self.beta.data.clamp_(0.0, 1.0)
         if self.b is not None:
             self.b.data.clamp_(min=0.0)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Tensor) -> Tensor:
+        """The forward pass of the neuron.
+
+        Args:
+            x (Tensor): the input tensor value
+
+        Returns:
+            Tensor: the output tensor
         """
-        The forward pass of the neuron
-        :param x: the input tensor
-        :return: the output tensor
-        """
-        # FIXME: this assert is not working on pooling layer
-        # assert self.w is not None, "Parameters are not initialized"
-        # if not x.any():
-        #     print(
-        #         f"[Warning-{self.name}] No spikes in the layer when trying to forward"
-        #     )
+        assert self.w is not None, "Parameters are not initialized"
+        self._assert(not x.any(), "No input spikes.")
         spk_rec, mem_rec = self.spike_forward(x)
-        # FIXME: this assert is not working on pooling layer
-        # assert not torch.isnan(mem_rec).any(), f"[{self.name}] NaN in mem_rec"
-        # assert not torch.isnan(spk_rec).any(), f"[{self.name}] NaN in spk_rec"
+        self._check_nan(mem_rec, "mem_rec")
+        self._check_nan(spk_rec, "spk_rec")
+
         self.__mem_rec = mem_rec
-        res = self.time_reduction(spk_rec, mem_rec)
-        self.__spike_rec = res
-        assert not torch.isnan(res).any(), f"[{self.name}] NaN in output"
-        return res
+        reduced_spike_rec = self.time_reduction_fn(self, spk_rec, mem_rec)
+        self.__spike_rec = reduced_spike_rec
+        self._check_nan(reduced_spike_rec, "output")
+        return reduced_spike_rec
 
     @abstractmethod
-    def spike_forward(
-        self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+    def spiking_forward(self, x: Tensor) -> tuple[Tensor, Tensor | None]:
+        """Spiking specific implementation of the forward pass.
+
+        Args:
+            x (Tensor): the input tensor
+
+        Returns:
+            tuple[Tensor, Tensor | None]: the spikes and the membrane potential
         """
-        The forward pass of the neuron
-        :param x: the input tensor
-        :return: the spikes and the membrane potential
-        """
-        ...
 
-    @abstractmethod
-    def initialize_parameters(self) -> None:
-        """
-        Initialize the parameters of the neuron
-        """
-        if self.w is not None or self.beta is not None or self.b is not None:
-            print(f"[Warning-{self.name}] Parameters are already initialized")
-        return super().initialize_parameters()
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ HELPERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def avg_mem(self) -> float:
+        """Return the average membrane potential. Used to debug layer activity."""
+        return self.__mem_rec.mean().item()
 
-    # ~~~~~~~~ Time Reduction ~~~~~~~~
-    def time_reduction(self, spk: torch.Tensor, mem: torch.Tensor) -> torch.Tensor:
-        if (
-            self.__time_reduction is None
-            or self.__time_reduction == TimeReduction.NoTimeReduction
-        ):
-            return spk
-        if callable(self.__time_reduction):
-            return self.__time_reduction(spk)
-        match self.__time_reduction:
-            case TimeReduction.SpikeRate:
-                return self.__time_reduction_spike_rate(spk)
-            case TimeReduction.SpikeTime:
-                return self.__time_reduction_spike_time(spk)
-            case TimeReduction.MemRecMax:
-                return self.__time_reduction_mem_rec_max(mem)
-            case TimeReduction.MemRecMean:
-                return self.__time_reduction_mem_rec_mean(mem)
-        raise ValueError(f"Invalid time_reduction {self.__time_reduction}")
+    def avg_spike(self) -> float:
+        """Return the average spike count. Used to debug layer activity."""
+        return self.__spike_rec.mean().item()
 
-    def __time_reduction_spike_rate(self, x: torch.Tensor) -> torch.Tensor:
-        spike_rate = torch.sum(x, 1)
-        return torch.nn.functional.softmax(spike_rate, dim=1)
+    def mem_percentage(self) -> float:
+        """Return the percentage of membrane potential. Used to debug layer activity."""
+        return (self.__mem_rec > 0).sum().item() / self.__mem_rec.numel()
 
-    def __time_reduction_spike_time(self, x: torch.Tensor) -> torch.Tensor:
-        max_data = torch.max(x, 1).indices
-        max_min_data = max_data.min(1)[1]
-        return torch.nn.functional.one_hot(
-            max_min_data, num_classes=self.out_features
-        ).to(torch.float32)
+    def spike_percentage(self) -> float:
+        """Return the percentage of spike count. Used to debug layer activity."""
+        return (self.__spike_rec > 0).sum().item() / self.__spike_rec.numel()
 
-    def __time_reduction_mem_rec_max(self, mem_rec: torch.Tensor) -> torch.Tensor:
-        output = torch.max(mem_rec, 1)[0] / (self.w_norm + 1e-8) - self.b
-        return output
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~ STRING REPRESENTATION ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __repr__(self) -> str:
+        return (
+            f"{self.name}(in={self.in_features}, out={self.out_features}, "
+            f"mean={self.w_init_mean}, std={self.w_init_std}, "
+            f"spike_fn={self.spike_fn.__name__}"
+            f", time_reduction={self.time_reduction_method})"
+            if self.time_reduction_method
+            else ")"
+        )
 
-    def __time_reduction_mem_rec_mean(self, mem_rec: torch.Tensor) -> torch.Tensor:
-        output = torch.mean(mem_rec, 1) / (self.w_norm + 1e-8) - self.b
-        return output
+    def __str__(self) -> str:
+        time_reduction = f", reduction={self.time_reduction_method.name}" if self.time_reduction_method else ""
+        return f"{self.name}({self.out_features}, spiking{time_reduction})"
 
     def details(self) -> str:
-        txt = super().details()
-        if (
-            self.__time_reduction is None
-            or self.__time_reduction == TimeReduction.NoTimeReduction
-        ):
-            time_reduction = ""
-        else:
-            time_reduction = f" TimeReduction: {self.time_reduction_method}"
-        return f"spk({txt}){time_reduction}"
+        time_reduction = f", reduction={self.time_reduction_method.name}" if self.time_reduction_method else ""
+        activity = f"mem={self.mem_percentage():.2%}, spk={self.spike_percentage():.2%}"
+        return f"{self.in_features} -> {self.out_features} spiking{time_reduction}, activity=({activity})"
