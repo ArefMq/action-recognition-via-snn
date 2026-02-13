@@ -19,20 +19,13 @@ class NeuronBase(torch.nn.Module, ABC):
         w_init_std (float): Standard deviation of the normal distribution used to initialize the weights.
     """
 
-    def __init__(
-        self,
-        name: str,
-        in_features: int,
-        out_features: int,
-        w_init_mean: float = W_INIT_MEAN,
-        w_init_std: float = W_INIT_STD,
-    ) -> None:
+    def __init__(self, **kwargs) -> None:
         super().__init__()
-        self.name = name
-        self.in_features = in_features
-        self.out_features = out_features
-        self.w_init_mean = w_init_mean
-        self.w_init_std = w_init_std
+        self.name = kwargs.get("name", "NeuronBase")
+        self.in_features = kwargs.get("in_features")
+        self.out_features = kwargs.get("out_features")
+        self.w_init_mean = kwargs.get("w_init_mean", W_INIT_MEAN)
+        self.w_init_std = kwargs.get("w_init_std", W_INIT_STD)
 
     @property
     def params(self) -> list[torch.nn.Parameter]:
@@ -75,6 +68,3 @@ class NeuronBase(torch.nn.Module, ABC):
 
     def __str__(self) -> str:
         return f"{self.name}({self.out_features})"
-
-    def details(self) -> str:
-        return f"{self.in_features} -> {self.out_features}"

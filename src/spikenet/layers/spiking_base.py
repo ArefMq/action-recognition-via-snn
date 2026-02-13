@@ -1,14 +1,11 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 
 import torch
 from torch import Tensor
 
 from spikenet.layers.neuron_base import NeuronBase
 from spikenet.tools.heaviside import SurrogateHeaviside
-from spikenet.tools.time_reduction import no_time_reduction
-
-TimeReductionFunction = Callable[["SpikingNeuron", Tensor, Tensor], Tensor]
+from spikenet.tools.time_reduction import TimeReductionFunction, no_time_reduction
 
 
 class SpikingNeuron(NeuronBase, ABC):
@@ -39,15 +36,51 @@ class SpikingNeuron(NeuronBase, ABC):
         self.__spike_rec: Tensor | None = None
 
         # Learning weights and parameters ........
-        self.w: torch.nn.Parameter | None = None
-        self.beta: torch.nn.Parameter | None = None
-        self.b: torch.nn.Parameter | None = None
+        self.__w: torch.nn.Parameter | None = None
+        self.__beta: torch.nn.Parameter | None = None
+        self.__b: torch.nn.Parameter | None = None
 
         # Initialization parameters ..............
         self.beta_init_std = kwargs.get("beta_init_std", 0.01)
         self.beta_init_mean = kwargs.get("beta_init_mean", 0.7)
         self.b_init_std = kwargs.get("b_init_std", 0.01)
         self.b_init_mean = kwargs.get("b_init_mean", 1.0)
+
+    @property
+    def w(self) -> torch.nn.Parameter:
+        """Weight parameter of the neuron."""
+        assert self.__w is not None, "Weight parameter is not initialized"
+        return self.__w
+
+    @w.setter
+    def w(self, value: torch.nn.Parameter) -> None:
+        """Set the weight parameter of the neuron."""
+        assert self.__w is None, "Weight parameter is already initialized"
+        self.__w = value
+
+    @property
+    def beta(self) -> torch.nn.Parameter:
+        """Beta parameter of the neuron."""
+        assert self.__beta is not None, "Beta parameter is not initialized"
+        return self.__beta
+
+    @beta.setter
+    def beta(self, value: torch.nn.Parameter) -> None:
+        """Set the beta parameter of the neuron."""
+        assert self.__beta is None, "Beta parameter is already initialized"
+        self.__beta = value
+
+    @property
+    def b(self) -> torch.nn.Parameter:
+        """B parameter of the neuron."""
+        assert self.__b is not None, "B parameter is not initialized"
+        return self.__b
+
+    @b.setter
+    def b(self, value: torch.nn.Parameter) -> None:
+        """Set the b parameter of the neuron."""
+        assert self.__b is None, "B parameter is already initialized"
+        self.__b = value
 
     @property
     def mem_rec(self) -> Tensor:
@@ -161,8 +194,3 @@ class SpikingNeuron(NeuronBase, ABC):
     def __str__(self) -> str:
         time_reduction = f", reduction={self.time_reduction_method.name}" if self.time_reduction_method else ""
         return f"{self.name}({self.out_features}, spiking{time_reduction})"
-
-    def details(self) -> str:
-        time_reduction = f", reduction={self.time_reduction_method.name}" if self.time_reduction_method else ""
-        activity = f"mem={self.mem_percentage():.2%}, spk={self.spike_percentage():.2%}"
-        return f"{self.in_features} -> {self.out_features} spiking{time_reduction}, activity=({activity})"

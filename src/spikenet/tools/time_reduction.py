@@ -1,10 +1,15 @@
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import torch
 from torch import Tensor
 
+from spikenet.tools.configs import EPSILON
+
 if TYPE_CHECKING:
     from spikenet.layers.spiking_base import SpikingNeuron
+
+TimeReductionFunction = Callable[["SpikingNeuron", Tensor, Tensor], Tensor]
 
 
 def no_time_reduction(neuron: SpikingNeuron, spk_rec: Tensor, mem_rec: Tensor) -> Tensor:
@@ -55,7 +60,7 @@ def max_membrane_potential(neuron: SpikingNeuron, _: Tensor, mem_rec: Tensor) ->
     Returns:
         Maximum membrane potentials with shape (batch_size, num_neurons)
     """
-    return torch.max(mem_rec, 1)[0] / (neuron.w_norm + 1e-8) - neuron.b
+    return torch.max(mem_rec, 1)[0] / (neuron.w_norm + EPSILON) - neuron.b
 
 
 def mean_membrane_potential(neuron: SpikingNeuron, _: Tensor, mem_rec: Tensor) -> Tensor:
@@ -68,4 +73,4 @@ def mean_membrane_potential(neuron: SpikingNeuron, _: Tensor, mem_rec: Tensor) -
     Returns:
         Mean membrane potentials with shape (batch_size, num_neurons)
     """
-    return torch.mean(mem_rec, 1) / (neuron.w_norm + 1e-8) - neuron.b
+    return torch.mean(mem_rec, 1) / (neuron.w_norm + EPSILON) - neuron.b

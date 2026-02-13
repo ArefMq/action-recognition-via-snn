@@ -1,8 +1,8 @@
-import torch
-import numpy as np
+from torch import Tensor
 
-from spikenet.functions import PollingReduction
 from spikenet.layers.spiking_base import SpikingNeuron
+from spikenet.tools.pooling_reduction import PoolingReductionFunction, max_spike_rate
+from spikenet.tools.window import window_to_and_array
 
 
 class SpikingPoolingLayer(SpikingNeuron):
@@ -10,7 +10,7 @@ class SpikingPoolingLayer(SpikingNeuron):
     Spiking Pooling Layer: This layer is used to create a pooling layer of spiking neurons.
 
     Args:
-        name (str): Name of the layer (default: <id>_<neuron_type>)
+        name (str): Name of the layer (default: "SpikingPoolingLayer")
         in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
         out_features (int): Number of output features.
         w_init_mean (float): Mean of the normal distribution used to initialize the weights.
@@ -21,76 +21,18 @@ class SpikingPoolingLayer(SpikingNeuron):
         beta_init_mean (float): Mean of the normal distribution used to initialize the beta parameter.
         b_init_std (float): Standard deviation of the normal distribution used to initialize the b parameter.
         b_init_mean (float): Mean of the normal distribution used to initialize the b parameter.
-        stride (int or np.ndarray): The stride of the pooling operation (default: np.array((1, 2, 2)))
-        kernel_size (int or np.ndarray): The size of the pooling kernel (default: np.array((1, 2, 2)))
+        stride (int or np.ndarray): The stride of the pooling operation (default: [1, 2, 2])
+        kernel (int or np.ndarray): The size of the pooling kernel (default: [1, 2, 2])
         reduction (PollingReduction): The reduction method to use (default: PollingReduction.MaxSpikeRate)
 
-    WARNING: Not to confuse reduction with time_reduction!
+    NOTE: Not to confuse reduction with time_reduction!
     """
+
     def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.stride: np.array = kwargs.get("stride", np.array((1, 2, 2)))
-        kernel_size = kwargs.get("kernel_size", np.array((1, 2, 2)))
-        if isinstance(kernel_size, int) or kernel_size.size == 1:
-            kernel_size = np.array((1, kernel_size, kernel_size))
-        self.kernel_size: np.ndarray = kernel_size
-        self.reduction: PollingReduction = kwargs.get(
-            "reduction", PollingReduction.MaxSpikeRate
-        )
+        super().__init__(name=kwargs.pop("name", "SpikingPoolingLayer"), **kwargs)
+        self.stride = window_to_and_array(kwargs.get("stride", (1, 2, 2)))
+        self.kernel = window_to_and_array(kwargs.get("kernel", (1, 2, 2)))
+        self.reduction: PoolingReductionFunction = kwargs.get("reduction", max_spike_rate)
 
-    @property
-    def is_conv(self) -> bool:
-        return True
-
-    def initialize_parameters(self) -> None:
-        pass
-
-    def clamp(self) -> None:
-        pass
-
-    def spike_forward(
-        self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
-        assert self.w is not None, "Parameters w are not initialized"
-        assert self.beta is not None, "Parameters beta are not initialized"
-        assert self.b is not None, "Parameters b are not initialized"
-
-        (batch_size, nb_in_channels, nb_steps, *in_shape) = x.shape
-        out_shape = (
-            (np.array((nb_steps, *in_shape)) - self.kernel_size) // self.stride + 1
-        ).astype(int)
-
-        spk_rec = torch.zeros(
-            (batch_size, self.out_features, nb_steps, *out_shape),
-            dtype=x.dtype,
-            device=x.device,
-        )
-
-        if self.reduction == PollingReduction.MaxSpikeRate:
-            spk_rec = torch.nn.functional.max_pool3d(
-                x,
-                kernel_size=tuple(self.kernel_size),
-                stride=tuple(self.stride),
-            )
-        elif self.reduction == PollingReduction.AvgSpikeRate:
-            spk_rec = torch.nn.functional.avg_pool3d(
-                x,
-                kernel_size=tuple(self.kernel_size),
-                stride=tuple(self.stride),
-            )
-        elif self.reduction == PollingReduction.SpikeTime:
-            raise NotImplementedError()
-        else:
-            raise NotImplementedError()
-        return spk_rec, None
-
-    def details(self) -> str:
-        txt = super().details()
-        ks = "x".join(map(str, self.kernel_size))
-        return f"pooling_{self.reduction.name}_{txt} {ks=}"
-
-    def plot_mem(*args, **kwargs) -> None:
-        pass
-
-    def plot_spk(*args, **kwargs) -> None:
-        pass
+    def spike_forward(self, x: Tensor) -> tuple[Tensor, Tensor | None]:
+        return self.reduction(x, self.kernel, self.stride), None

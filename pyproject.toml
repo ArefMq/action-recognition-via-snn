@@ -8,6 +8,7 @@ license = { text = "MIT" }
 authors = [{ name = "Aref Moqadam Mehr", email = "aref.moqadam@gmail.com" }]
 
 dependencies = [
+    "loguru>=0.7.3",
     "numpy>=2.4.2",
     "torch>=2.10.0",
     "torchvision>=0.25.0",
@@ -85,6 +86,7 @@ max-complexity = 8 # limit number of branching points
     "S101",   # Allow use of `assert` in tests
     "SIM108", # Use of ternary operator instead of if statement
     "TRY003", # Avoid specifying long messages outside the exception class
+    "RUF059", # Allow use of tuple instead of list in constants
 ]
 "__init__.py" = [
     "F401", # Unused imports
