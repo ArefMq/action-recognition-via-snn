@@ -1,7 +1,7 @@
 from torch import Tensor
 
+from spikenet.functions.pooling_reduction import PoolingReductionFunction, max_spike_rate
 from spikenet.layers.spiking_base import SpikingNeuron
-from spikenet.tools.pooling_reduction import PoolingReductionFunction, max_spike_rate
 from spikenet.tools.window import window_to_and_array
 
 

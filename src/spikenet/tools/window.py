@@ -1,9 +1,7 @@
-import numpy as np
-
 Window3D = tuple[int, int, int]
 
 
-def window_to_and_array(window: Window3D | int, flat: bool = True) -> np.ndarray:
+def window_to_and_array(window: Window3D | int, flat: bool = True) -> Window3D:
     """
     Convert a window to an np.ndarray.
 
@@ -26,6 +24,7 @@ def window_to_and_array(window: Window3D | int, flat: bool = True) -> np.ndarray
     """
     if isinstance(window, int):
         if flat:
-            return np.array([1, window, window])
-        return np.array([window, window, window])
-    return np.array(window)
+            return (1, window, window)
+        return (window, window, window)
+    assert len(window) == 3, "Window must be a tuple of length 3"
+    return window

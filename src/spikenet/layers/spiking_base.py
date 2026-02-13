@@ -1,11 +1,10 @@
 from abc import ABC, abstractmethod
 
-import torch
 from torch import Tensor
 
+from spikenet.functions.heaviside import SurrogateHeaviside
+from spikenet.functions.time_reduction import TimeReductionFunction, no_time_reduction
 from spikenet.layers.neuron_base import NeuronBase
-from spikenet.tools.heaviside import SurrogateHeaviside
-from spikenet.tools.time_reduction import TimeReductionFunction, no_time_reduction
 
 
 class SpikingNeuron(NeuronBase, ABC):
@@ -32,55 +31,21 @@ class SpikingNeuron(NeuronBase, ABC):
         self.time_reduction_fn: TimeReductionFunction = kwargs.get("time_reduction", no_time_reduction)
 
         # Internal attributes .....................
-        self.__mem_rec: Tensor | None = None
-        self.__spike_rec: Tensor | None = None
+        self._mem_rec: Tensor | None = None
+        self._spike_rec: Tensor | None = None
 
-        # Learning weights and parameters ........
-        self.__w: torch.nn.Parameter | None = None
-        self.__beta: torch.nn.Parameter | None = None
-        self.__b: torch.nn.Parameter | None = None
+        # Register learnable parameters as None — subclasses populate
+        # these in initialize_parameters(). Using register_parameter
+        # keeps them compatible with PyTorch's Module parameter system.
+        self.register_parameter("w", None)
+        self.register_parameter("beta", None)
+        self.register_parameter("b", None)
 
         # Initialization parameters ..............
         self.beta_init_std = kwargs.get("beta_init_std", 0.01)
         self.beta_init_mean = kwargs.get("beta_init_mean", 0.7)
         self.b_init_std = kwargs.get("b_init_std", 0.01)
         self.b_init_mean = kwargs.get("b_init_mean", 1.0)
-
-    @property
-    def w(self) -> torch.nn.Parameter:
-        """Weight parameter of the neuron."""
-        assert self.__w is not None, "Weight parameter is not initialized"
-        return self.__w
-
-    @w.setter
-    def w(self, value: torch.nn.Parameter) -> None:
-        """Set the weight parameter of the neuron."""
-        assert self.__w is None, "Weight parameter is already initialized"
-        self.__w = value
-
-    @property
-    def beta(self) -> torch.nn.Parameter:
-        """Beta parameter of the neuron."""
-        assert self.__beta is not None, "Beta parameter is not initialized"
-        return self.__beta
-
-    @beta.setter
-    def beta(self, value: torch.nn.Parameter) -> None:
-        """Set the beta parameter of the neuron."""
-        assert self.__beta is None, "Beta parameter is already initialized"
-        self.__beta = value
-
-    @property
-    def b(self) -> torch.nn.Parameter:
-        """B parameter of the neuron."""
-        assert self.__b is not None, "B parameter is not initialized"
-        return self.__b
-
-    @b.setter
-    def b(self, value: torch.nn.Parameter) -> None:
-        """Set the b parameter of the neuron."""
-        assert self.__b is None, "B parameter is already initialized"
-        self.__b = value
 
     @property
     def mem_rec(self) -> Tensor:
@@ -92,8 +57,8 @@ class SpikingNeuron(NeuronBase, ABC):
         Raises:
             AssertionError: if mem_rec is not initialized
         """
-        assert self.__mem_rec is not None, "mem_rec is not initialized"
-        return self.__mem_rec
+        assert self._mem_rec is not None, "mem_rec is not initialized"
+        return self._mem_rec
 
     @property
     def spike_rec(self) -> Tensor:
@@ -105,8 +70,8 @@ class SpikingNeuron(NeuronBase, ABC):
         Raises:
             AssertionError: if spike_rec is not initialized
         """
-        assert self.__spike_rec is not None, "spike_rec is not initialized"
-        return self.__spike_rec
+        assert self._spike_rec is not None, "spike_rec is not initialized"
+        return self._spike_rec
 
     @property
     def w_norm(self) -> Tensor:
@@ -141,19 +106,20 @@ class SpikingNeuron(NeuronBase, ABC):
             Tensor: the output tensor
         """
         assert self.w is not None, "Parameters are not initialized"
-        self._assert(not x.any(), "No input spikes.")
+        self._assert(x.any(), "No input spikes.", warning=True)
         spk_rec, mem_rec = self.spike_forward(x)
-        self._check_nan(mem_rec, "mem_rec")
+        if mem_rec is not None:
+            self._check_nan(mem_rec, "mem_rec")
         self._check_nan(spk_rec, "spk_rec")
 
-        self.__mem_rec = mem_rec
+        self._mem_rec = mem_rec
         reduced_spike_rec = self.time_reduction_fn(self, spk_rec, mem_rec)
-        self.__spike_rec = reduced_spike_rec
+        self._spike_rec = reduced_spike_rec
         self._check_nan(reduced_spike_rec, "output")
         return reduced_spike_rec
 
     @abstractmethod
-    def spiking_forward(self, x: Tensor) -> tuple[Tensor, Tensor | None]:
+    def spike_forward(self, x: Tensor) -> tuple[Tensor, Tensor | None]:
         """Spiking specific implementation of the forward pass.
 
         Args:
@@ -166,19 +132,23 @@ class SpikingNeuron(NeuronBase, ABC):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ HELPERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def avg_mem(self) -> float:
         """Return the average membrane potential. Used to debug layer activity."""
-        return self.__mem_rec.mean().item()
+        assert self._mem_rec is not None, "mem_rec is not initialized"
+        return self._mem_rec.mean().item()
 
     def avg_spike(self) -> float:
         """Return the average spike count. Used to debug layer activity."""
-        return self.__spike_rec.mean().item()
+        assert self._spike_rec is not None, "spike_rec is not initialized"
+        return self._spike_rec.mean().item()
 
     def mem_percentage(self) -> float:
         """Return the percentage of membrane potential. Used to debug layer activity."""
-        return (self.__mem_rec > 0).sum().item() / self.__mem_rec.numel()
+        assert self._mem_rec is not None, "mem_rec is not initialized"
+        return (self._mem_rec > 0).sum().item() / self._mem_rec.numel()
 
     def spike_percentage(self) -> float:
         """Return the percentage of spike count. Used to debug layer activity."""
-        return (self.__spike_rec > 0).sum().item() / self.__spike_rec.numel()
+        assert self._spike_rec is not None, "spike_rec is not initialized"
+        return (self._spike_rec > 0).sum().item() / self._spike_rec.numel()
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~ STRING REPRESENTATION ~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __repr__(self) -> str:
@@ -186,11 +156,8 @@ class SpikingNeuron(NeuronBase, ABC):
             f"{self.name}(in={self.in_features}, out={self.out_features}, "
             f"mean={self.w_init_mean}, std={self.w_init_std}, "
             f"spike_fn={self.spike_fn.__name__}"
-            f", time_reduction={self.time_reduction_method})"
-            if self.time_reduction_method
-            else ")"
+            f", time_reduction={self.time_reduction_fn.__name__})"
         )
 
     def __str__(self) -> str:
-        time_reduction = f", reduction={self.time_reduction_method.name}" if self.time_reduction_method else ""
-        return f"{self.name}({self.out_features}, spiking{time_reduction})"
+        return f"{self.name}({self.out_features}, spiking)"
