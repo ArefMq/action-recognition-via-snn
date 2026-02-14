@@ -2,8 +2,8 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from spikenet.constants import EPSILON
 from spikenet.layers.spiking_dense import SpikingDenseLayer
-from spikenet.tools.configs import EPSILON
 from spikenet.tools.window import window_to_and_array
 
 

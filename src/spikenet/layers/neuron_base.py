@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import torch
 from loguru import logger
 
-from spikenet.tools.configs import W_INIT_MEAN, W_INIT_STD
+from spikenet.constants import W_INIT_MEAN, W_INIT_STD
 
 
 class NeuronBase(torch.nn.Module, ABC):

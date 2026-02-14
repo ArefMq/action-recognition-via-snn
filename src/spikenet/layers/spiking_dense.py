@@ -2,8 +2,8 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from spikenet.constants import EPSILON
 from spikenet.layers.spiking_base import SpikingNeuron
-from spikenet.tools.configs import EPSILON
 
 
 class SpikingDenseLayer(SpikingNeuron):

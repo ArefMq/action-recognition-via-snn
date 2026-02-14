@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import torch
 from torch import Tensor
 
-from spikenet.tools.configs import EPSILON
+from spikenet.constants import EPSILON
 
 if TYPE_CHECKING:
     from spikenet.layers.spiking_base import SpikingNeuron
