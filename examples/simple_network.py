@@ -17,3 +17,6 @@ net += SpikingDenseLayer(128)
 # Output layer. Features are dynamically assigned based on
 # the number of classes in the dataset.
 net += SpikingDenseLayer()
+net.summarise()
+
+net.fit()

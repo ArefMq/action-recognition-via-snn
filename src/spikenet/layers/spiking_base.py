@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 from torch import Tensor
 
@@ -13,8 +14,8 @@ class SpikingNeuron(NeuronBase, ABC):
 
     Args:
         name (str): Name of the layer (default: "SpikingNeuron")
-        in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
-        out_features (int): Number of output features.
+        in_features (int | None): Number of input features. None means defer specification to compile time.
+        out_features (int | None): Number of output features. None means defer specification to compile time.
         w_init_mean (float): Mean of the normal distribution used to initialize the weights.
         w_init_std (float): Standard deviation of the normal distribution used to initialize the weights.
         spike_fn (Callable): The spike function to use (default: SurrogateHeaviside.apply)
@@ -25,9 +26,9 @@ class SpikingNeuron(NeuronBase, ABC):
         b_init_mean (float): Mean of the normal distribution used to initialize the b parameter.
     """
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(name=kwargs.pop("name", "SpikingNeuron"), **kwargs)
-        self.spike_fn = kwargs.get("spike_fn", SurrogateHeaviside.apply)
+    def __init__(self, out_features: int | None = None, **kwargs) -> None:
+        super().__init__(out_features=out_features, name=kwargs.pop("name", "SpikingNeuron"), **kwargs)
+        self.spike_fn: Callable = kwargs.get("spike_fn", SurrogateHeaviside.apply)
         self.time_reduction_fn: TimeReductionFunction = kwargs.get("time_reduction", no_time_reduction)
 
         # Internal attributes .....................
@@ -42,10 +43,10 @@ class SpikingNeuron(NeuronBase, ABC):
         self.register_parameter("b", None)
 
         # Initialization parameters ..............
-        self.beta_init_std = kwargs.get("beta_init_std", 0.01)
-        self.beta_init_mean = kwargs.get("beta_init_mean", 0.7)
-        self.b_init_std = kwargs.get("b_init_std", 0.01)
-        self.b_init_mean = kwargs.get("b_init_mean", 1.0)
+        self.beta_init_std: float = kwargs.get("beta_init_std", 0.01)
+        self.beta_init_mean: float = kwargs.get("beta_init_mean", 0.7)
+        self.b_init_std: float = kwargs.get("b_init_std", 0.01)
+        self.b_init_mean: float = kwargs.get("b_init_mean", 1.0)
 
     @property
     def mem_rec(self) -> Tensor:

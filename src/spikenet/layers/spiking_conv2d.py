@@ -14,25 +14,25 @@ class SpikingConv2D(SpikingDenseLayer):
 
     Args:
         name (str): Name of the layer (default: "Conv2D")
-        in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
-        out_features (int): Number of output features.
+        in_features (int | None): Number of input features. None means defer specification to compile time.
+        out_features (int | None): Number of output features. None means defer specification to compile time.
         w_init_mean (float): Mean of the normal distribution used to initialize the weights.
         w_init_std (float): Standard deviation of the normal distribution used to initialize the weights.
         spike_fn (Callable): The spike function to use (default: SurrogateHeaviside.apply)
-        time_reduction (str or TimeReduction): The time reduction method to use (default: TimeReduction.NoTimeReduction)
+        time_reduction (Callable | None): The time reduction method to use (default: TimeReduction.NoTimeReduction)
         beta_init_std (float): Standard deviation of the normal distribution used to initialize the beta parameter.
         beta_init_mean (float): Mean of the normal distribution used to initialize the beta parameter.
         b_init_std (float): Standard deviation of the normal distribution used to initialize the b parameter.
         b_init_mean (float): Mean of the normal distribution used to initialize the b parameter.
-        mem_clamp (bool): Whether to clamp the membrane potential between 0 and 1 (default: True)
-        stride (int or np.ndarray): The stride of the convolution operation (default: np.array((1, 1, 1)))
-        padding (int or np.ndarray): The padding of the convolution operation (default: np.array((0, 0, 0)))
-        dilation (int or np.ndarray): The dilation of the convolution operation (default: np.array((1, 1, 1)))
-        kernel (int or np.ndarray): The size of the convolution kernel (default: np.array((1, 3, 3)))
+        clamp_membrane (bool): Whether to clamp the membrane potential between 0 and 1 (default: True)
+        stride (int | np.ndarray): The stride of the convolution operation (default: [1, 1, 1])
+        padding (int | np.ndarray): The padding of the convolution operation (default: [0, 0, 0])
+        dilation (int | np.ndarray): The dilation of the convolution operation (default: [1, 1, 1])
+        kernel (int | np.ndarray): The size of the convolution kernel (default: [1, 3, 3])
     """
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
+    def __init__(self, out_features: int | None = None, **kwargs) -> None:
+        super().__init__(out_features=out_features, **kwargs)
         self.stride = window_to_and_array(kwargs.get("stride", (1, 1, 1)))
         self.padding = window_to_and_array(kwargs.get("padding", (0, 0, 0)))
         self.dilation = window_to_and_array(kwargs.get("dilation", (1, 1, 1)))

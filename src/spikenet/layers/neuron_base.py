@@ -13,19 +13,19 @@ class NeuronBase(torch.nn.Module, ABC):
 
     Args:
         name (str): Name of the layer
-        in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
-        out_features (int): Number of output features.
+        in_features (int | None): Number of input features. None means defer specification to compile time.
+        out_features (int | None): Number of output features. None means defer specification to compile time.
         w_init_mean (float): Mean of the normal distribution used to initialize the weights.
         w_init_std (float): Standard deviation of the normal distribution used to initialize the weights.
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, out_features: int | None, **kwargs) -> None:
         super().__init__()
         self.name = kwargs.get("name", "NeuronBase")
-        self.in_features = kwargs.get("in_features")
-        self.out_features = kwargs.get("out_features")
-        self.w_init_mean = kwargs.get("w_init_mean", W_INIT_MEAN)
-        self.w_init_std = kwargs.get("w_init_std", W_INIT_STD)
+        self.in_features: int | None = kwargs.get("in_features")
+        self.out_features: int | None = out_features
+        self.w_init_mean: float = kwargs.get("w_init_mean", W_INIT_MEAN)
+        self.w_init_std: float = kwargs.get("w_init_std", W_INIT_STD)
 
     @property
     def params(self) -> list[torch.nn.Parameter]:

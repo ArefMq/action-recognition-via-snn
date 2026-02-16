@@ -11,6 +11,9 @@ class Flatten(NeuronBase):
     used by the dense layer.
     """
 
+    def __init__(self, **kwargs) -> None:
+        super().__init__(out_features=None, **kwargs)
+
     def forward(self, spk_rec: Tensor) -> Tensor:
         """
         Forward pass of the flatten layer.

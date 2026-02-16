@@ -12,12 +12,12 @@ class SpikingDenseLayer(SpikingNeuron):
 
     Args:
         name (str): Name of the layer (default: "SpikingDenseLayer")
-        in_features (int): Number of input features. None for getting the value from previous layer or input tensor.
-        out_features (int): Number of output features.
+        in_features (int | None): Number of input features. None means defer specification to compile time.
+        out_features (int | None): Number of output features. None means defer specification to compile time.
         w_init_mean (float): Mean of the normal distribution used to initialize the weights.
         w_init_std (float): Standard deviation of the normal distribution used to initialize the weights.
         spike_fn (Callable): The spike function to use (default: SurrogateHeaviside.apply)
-        time_reduction (str or TimeReduction): The time reduction method to use (default: TimeReduction.NoTimeReduction)
+        time_reduction (Callable | None): The time reduction method to use (default: TimeReduction.NoTimeReduction)
         beta_init_std (float): Standard deviation of the normal distribution used to initialize the beta parameter.
         beta_init_mean (float): Mean of the normal distribution used to initialize the beta parameter.
         b_init_std (float): Standard deviation of the normal distribution used to initialize the b parameter.
@@ -25,8 +25,8 @@ class SpikingDenseLayer(SpikingNeuron):
         clamp_membrane (bool): Whether to clamp the membrane potential between 0 and 1 (default: True)
     """
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(name=kwargs.pop("name", "SpikingDenseLayer"), **kwargs)
+    def __init__(self, out_features: int | None = None, **kwargs) -> None:
+        super().__init__(out_features=out_features, name=kwargs.pop("name", "SpikingDenseLayer"), **kwargs)
         self.clamp_membrane = kwargs.get("clamp_membrane", True)
 
     def initialize_parameters(self) -> None:
