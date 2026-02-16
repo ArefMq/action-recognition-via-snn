@@ -2,7 +2,6 @@ import math
 from collections.abc import Iterator
 
 import torch
-from loguru import logger
 from torch import Tensor
 from typing_extensions import Self
 
@@ -94,25 +93,18 @@ class Network(torch.nn.Module):
         input_features: int | None = None,
         output_features: int | None = None,
     ):
-        if self._layers[0].in_features is None:
+        if isinstance(self._layers[0], NeuronBase) and self._layers[0].in_features is None:
             self._layers[0].in_features = input_features
-        elif input_features is not None:
-            logger.warning(
-                "Input features provided but first layer already has input features, This parameter will be ignored."
-            )
-        if self._layers[-1].out_features is None:
+        if isinstance(self._layers[-1], NeuronBase) and self._layers[-1].out_features is None:
             self._layers[-1].out_features = output_features
-        elif output_features is not None:
-            logger.warning(
-                "Output features provided but last layer already has output features; This parameter will be ignored."
-            )
+
         for i, layer in enumerate(self._layers):
             if not isinstance(layer, NeuronBase):
                 continue
             if i == 0:
                 continue
 
-            if layer.in_features is None:
+            if layer.in_features is None and isinstance(self._layers[i - 1], NeuronBase):
                 layer.in_features = self._layers[i - 1].out_features
             if layer.out_features is None and i != len(self._layers) - 1:
                 layer.out_features = layer.in_features
