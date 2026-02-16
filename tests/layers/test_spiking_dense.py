@@ -1,7 +1,7 @@
 import torch
 
+from spikenet.functions.time_reduction import spike_rate
 from spikenet.layers.spiking_dense import SpikingDenseLayer
-from spikenet.tools.time_reduction import spike_rate
 
 
 def _make_layer(in_features=10, out_features=5, **kwargs):

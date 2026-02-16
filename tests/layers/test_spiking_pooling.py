@@ -1,8 +1,8 @@
 import numpy as np
 import torch
 
+from spikenet.functions.pooling_reduction import avg_spike_rate
 from spikenet.layers.spiking_pooling import SpikingPoolingLayer
-from spikenet.tools.pooling_reduction import avg_spike_rate
 
 
 def test_default_pooling_params():

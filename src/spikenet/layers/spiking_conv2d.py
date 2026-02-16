@@ -60,7 +60,7 @@ class SpikingConv2D(SpikingDenseLayer):
         return torch.nn.functional.conv3d(
             x,
             self.w,
-            padding=tuple(np.ceil(((self.kernel - 1) * self.dilation) / 2).astype(int)),
+            padding=tuple(self.padding),
             dilation=tuple(self.dilation),
             stride=tuple(self.stride),
         )
@@ -75,9 +75,9 @@ class SpikingConv2D(SpikingDenseLayer):
         ]
 
     def spike_forward(self, x: Tensor) -> tuple[Tensor, Tensor | None]:
-        (batch_size, nb_in_channels, nb_steps, *out_shape) = x.shape
+        (batch_size, nb_in_channels, nb_steps, *_) = x.shape
         conv_x = self._apply_conv(x)
-        conv_x = self._crop_output(conv_x, (out_shape[0], out_shape[1]))
+        out_shape = conv_x.shape[3:]
 
         # membrane potential
         mem = torch.zeros(

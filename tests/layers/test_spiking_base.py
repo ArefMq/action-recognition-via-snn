@@ -1,9 +1,9 @@
 import pytest
 import torch
 
+from spikenet.functions.heaviside import SurrogateHeaviside
+from spikenet.functions.time_reduction import no_time_reduction
 from spikenet.layers.spiking_dense import SpikingDenseLayer
-from spikenet.tools.heaviside import SurrogateHeaviside
-from spikenet.tools.time_reduction import no_time_reduction
 
 
 def _make_layer(in_features=10, out_features=5, **kwargs):
