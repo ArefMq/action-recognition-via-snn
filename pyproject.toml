@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.15"
 license = { text = "MIT" }
 authors = [{ name = "Aref Moqadam Mehr", email = "aref.moqadam@gmail.com" }]
-
+packages = [{ name = "spikenet", include = "src" }]
 dependencies = [
     "loguru>=0.7.3",
     "numpy>=2.4.2",
@@ -38,10 +38,7 @@ dev = [
     "ruff>=0.14.13",
     "mypy>=1.19.1",
 ]
-research = [
-    "jupyter>=1.1.1",
-    "seaborn>=0.13.2",
-]
+research = ["jupyter>=1.1.1", "seaborn>=0.13.2"]
 # TODO: Add these once we have a proper build process
 # build = [
 #     "awscli>=1.44.14,<2.0.0",

@@ -5,6 +5,7 @@ import torch
 from torch import Tensor
 from typing_extensions import Self
 
+from spikenet.constants import DEFAULT_EPOCHS, DEFAULT_LEARNING_RATE, DEFAULT_MOMENTUM, DEFAULT_WEIGHT_DECAY
 from spikenet.data import DataLoader
 from spikenet.layers.neuron_base import NeuronBase
 from spikenet.network.criterion import Criterion
@@ -20,8 +21,10 @@ class Network(torch.nn.Module):
         optimizer: torch.optim.Optimizer | None = None,
         loss_fn: torch.nn.Module = torch.nn.NLLLoss,
         encoding: torch.nn.Module = None,
-        epochs: int = 10,
-        learning_rate: float = 0.0001,
+        epochs: int = DEFAULT_EPOCHS,
+        learning_rate: float = DEFAULT_LEARNING_RATE,
+        momentum: float = DEFAULT_MOMENTUM,
+        weight_decay: float = DEFAULT_WEIGHT_DECAY,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -32,6 +35,8 @@ class Network(torch.nn.Module):
             encoding=encoding or torch.nn.LogSoftmax(dim=1),
             epochs=epochs,
             learning_rate=learning_rate,
+            momentum=momentum,
+            weight_decay=weight_decay,
         )
         self.name = name
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -72,7 +77,90 @@ class Network(torch.nn.Module):
         self.test(dataloader)
         return self
 
-    def test(self, dataloader: DataLoader) -> None: ...
+    def train(
+        self,
+        dataloader: DataLoader,
+        epochs: int | None = None,
+        learning_rate: float | None = None,
+        lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
+    ) -> list[dict[str, float]]:
+        super().train()
+        self.to(self.device)
+
+        num_epochs = epochs if epochs is not None else self.criterion.epochs
+        optimizer = self.criterion.get_optim(self, lr=learning_rate)
+        loss_fn = self.criterion.get_loss_fn(self)
+
+        history: list[dict[str, float]] = []
+
+        for epoch in range(num_epochs):
+            epoch_loss = 0.0
+            correct = 0
+            total = 0
+            num_batches = 0
+
+            for x, y in dataloader("train"):
+                x = x.to(self.device)
+                y = y.to(self.device)
+
+                optimizer.zero_grad()
+                output = self(x)
+                encoded = self.criterion.encoding(output)
+                loss = loss_fn(encoded, y)
+                loss.backward()
+                optimizer.step()
+                self.clamp()
+
+                epoch_loss += loss.item()
+                predictions = encoded.argmax(dim=1)
+                correct += (predictions == y).sum().item()
+                total += y.size(0)
+                num_batches += 1
+
+            if lr_scheduler is not None:
+                lr_scheduler.step()
+
+            metrics = {
+                "epoch": float(epoch + 1),
+                "loss": epoch_loss / num_batches,
+                "accuracy": correct / total,
+            }
+            history.append(metrics)
+            print(f"Epoch [{epoch + 1}/{num_epochs}]  loss={metrics['loss']:.4f}  acc={metrics['accuracy']:.4f}")
+
+        return history
+
+    def test(self, dataloader: DataLoader) -> dict[str, float]:
+        super().eval()
+        self.to(self.device)
+
+        loss_fn = self.criterion.get_loss_fn(self)
+        test_loss = 0.0
+        correct = 0
+        total = 0
+        num_batches = 0
+
+        with torch.no_grad():
+            for x, y in dataloader("test"):
+                x = x.to(self.device)
+                y = y.to(self.device)
+
+                output = self(x)
+                encoded = self.criterion.encoding(output)
+                loss = loss_fn(encoded, y)
+
+                test_loss += loss.item()
+                predictions = encoded.argmax(dim=1)
+                correct += (predictions == y).sum().item()
+                total += y.size(0)
+                num_batches += 1
+
+        metrics = {
+            "loss": test_loss / num_batches,
+            "accuracy": correct / total,
+        }
+        print(f"Test  loss={metrics['loss']:.4f}  acc={metrics['accuracy']:.4f}")
+        return metrics
 
     # ~~~~~~~~~~~~~~~~~~~~~~~ Compile Network ~~~~~~~~~~~~~~~~~~~~~~~~~
     def compiled(
