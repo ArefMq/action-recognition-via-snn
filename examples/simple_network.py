@@ -2,6 +2,7 @@ from spikenet.dataset.spiking_mnist import SpikingMNISTDataLoader
 from spikenet.functions.time_reduction import max_membrane_potential
 from spikenet.layers import Flatten, SpikingConv2D, SpikingDenseLayer, SpikingPoolingLayer
 from spikenet.network.network import Network
+from spikenet.visual import plot_training_history
 
 # ---------------------------------------------------------------------------
 # Data
@@ -13,14 +14,14 @@ data = SpikingMNISTDataLoader(frame_size=14, time_scale=16, batch_size=64)
 # ---------------------------------------------------------------------------
 # Network
 # ---------------------------------------------------------------------------
-net = Network(epochs=5, learning_rate=1e-3)
+net = Network(epochs=3, learning_rate=1e-3)
 
-# First conv block: 1 input channel (grayscale) → 16 feature maps
+# First conv block: 1 input channel (binary spikes) → 16 feature maps
 net += SpikingConv2D(16, in_features=1)
 net += SpikingPoolingLayer()
 
-# Second conv block: 16 → 32 feature maps
-net += SpikingConv2D(32)
+# Second conv block: 16 → 128 feature maps
+net += SpikingConv2D(128)
 net += SpikingPoolingLayer()
 
 # Bridge: reshape (batch, channels, time, h, w) → (batch, time, features)
@@ -28,6 +29,7 @@ net += Flatten()
 
 # Dense hidden layer
 net += SpikingDenseLayer(128)
+net += SpikingDenseLayer(512)
 
 # Output layer: 10 classes. max_membrane_potential collapses the time
 # dimension into a single class score per neuron.
@@ -53,3 +55,5 @@ print(f"\nFinal train loss : {history[-1]['loss']:.4f}")
 print(f"Final train acc  : {history[-1]['accuracy']:.4f}")
 print(f"Test  loss       : {metrics['loss']:.4f}")
 print(f"Test  acc        : {metrics['accuracy']:.4f}")
+
+plot_training_history(history, test_metrics=metrics)

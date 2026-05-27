@@ -9,9 +9,10 @@ from spikenet.constants import DEFAULT_EPOCHS, DEFAULT_LEARNING_RATE, DEFAULT_MO
 from spikenet.data import DataLoader
 from spikenet.layers.neuron_base import NeuronBase
 from spikenet.network.criterion import Criterion
+from spikenet.visual.mixins import NetworkPlottable
 
 
-class Network(torch.nn.Module):
+class Network(torch.nn.Module, NetworkPlottable):
     def __init__(
         self,
         *args,
@@ -79,13 +80,23 @@ class Network(torch.nn.Module):
 
     def train(
         self,
-        dataloader: DataLoader,
+        dataloader: DataLoader | bool = True,
         epochs: int | None = None,
         learning_rate: float | None = None,
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
     ) -> list[dict[str, float]]:
+        if isinstance(dataloader, bool):
+            return super().train(dataloader)
         super().train()
         self.to(self.device)
+
+        # Dry run to trigger lazy parameter initialization in layers whose
+        # in_features can't be known at compile time (e.g. SpikingDenseLayer
+        # after a Flatten, where the actual flattened size depends on spatial dims).
+        for x, _ in dataloader("train"):
+            with torch.no_grad():
+                self(x[:1].to(self.device))
+            break
 
         num_epochs = epochs if epochs is not None else self.criterion.epochs
         optimizer = self.criterion.get_optim(self, lr=learning_rate)
@@ -165,15 +176,12 @@ class Network(torch.nn.Module):
     # ~~~~~~~~~~~~~~~~~~~~~~~ Compile Network ~~~~~~~~~~~~~~~~~~~~~~~~~
     def compiled(
         self,
-        *args,
         input_features: int | None = None,
         output_features: int | None = None,
-        **kwargs,
     ) -> None:
         if self._is_compiled:
             return
         self._populate_features(input_features, output_features)
-        super().compile(*args, **kwargs)
         self._is_compiled = True
 
     def _populate_features(
@@ -198,7 +206,11 @@ class Network(torch.nn.Module):
                 layer.out_features = layer.in_features
 
     def validate_layers(self) -> bool:
-        return all(not (layer.in_features is None or layer.out_features is None) for layer in self._layers)
+        return all(
+            not (layer.in_features is None or layer.out_features is None)
+            for layer in self._layers
+            if isinstance(layer, NeuronBase)
+        )
 
     @property
     def is_compiled(self) -> bool:
@@ -242,7 +254,11 @@ class Network(torch.nn.Module):
             for layer in self._layers
         ]
         result_magnitude = math.ceil(math.log10(len(result))) if len(result) > 0 else 1
-        return "\n".join(f"{i:0{result_magnitude}d}) {line}" for i, line in enumerate(result))
+        rows = "\n".join(f"{i:0{result_magnitude}d}) {line}" for i, line in enumerate(result))
+        sep = "\u2500" * 54
+        total_params = sum(p.numel() for p in self.parameters())
+        total_line = f"{'Total':<24s} {'':<16s} {total_params:>8,} params  ({len(result)} layers)"
+        return f"{rows}\n{sep}\n{total_line}"
 
     def _layer_summary_spikenet_layer(self, layer: NeuronBase) -> str:
         name = type(layer).__name__

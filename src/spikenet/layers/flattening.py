@@ -26,4 +26,6 @@ class Flatten(NeuronBase):
         """
         (batch_size, nb_channels, nb_steps, *_) = spk_rec.shape
         output = torch.transpose(spk_rec, 1, 2).contiguous()
-        return output.view(batch_size, nb_steps, self.out_features)
+        result = output.view(batch_size, nb_steps, -1)
+        self.out_features = result.shape[2]
+        return result

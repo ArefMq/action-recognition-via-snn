@@ -44,6 +44,9 @@ class SpikingDenseLayer(SpikingNeuron):
         torch.nn.init.normal_(self.b, mean=self.b_init_mean, std=self.b_init_std)
 
     def spike_forward(self, x: Tensor) -> tuple[Tensor, Tensor | None]:
+        if self.w is None or self.in_features != x.shape[2]:
+            self.in_features = x.shape[2]
+            self.initialize_parameters()
         batch_size, nb_steps = x.shape[0], x.shape[1]
         h = torch.einsum("abc,cd->abd", x, self.w)
 

@@ -4,8 +4,10 @@ from typing import Any
 import torch
 import torch.utils.data as data
 
+from spikenet.visual.mixins import DataPlottable
 
-class DataLoader:
+
+class DataLoader(DataPlottable):
     def __init__(
         self,
         train_data: data.Dataset | None = None,

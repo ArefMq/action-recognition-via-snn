@@ -6,9 +6,10 @@ from torch import Tensor
 from spikenet.functions.heaviside import SurrogateHeaviside
 from spikenet.functions.time_reduction import TimeReductionFunction, no_time_reduction
 from spikenet.layers.neuron_base import NeuronBase
+from spikenet.visual.mixins import LayerPlottable
 
 
-class SpikingNeuron(NeuronBase, ABC):
+class SpikingNeuron(NeuronBase, LayerPlottable, ABC):
     """
     Base class for all spiking neuron layers used in the SpikeNet framework.
 
@@ -106,7 +107,6 @@ class SpikingNeuron(NeuronBase, ABC):
         Returns:
             Tensor: the output tensor
         """
-        assert self.w is not None, "Parameters are not initialized"
         self._assert(x.any(), "No input spikes.", warning=True)
         spk_rec, mem_rec = self.spike_forward(x)
         if mem_rec is not None:

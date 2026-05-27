@@ -2296,6 +2296,7 @@ dependencies = [
 dev = [
     { name = "hypothesis" },
     { name = "ipython" },
+    { name = "jupyter" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -2319,6 +2320,7 @@ requires-dist = [
 dev = [
     { name = "hypothesis", specifier = ">=6.114,<7.0.0" },
     { name = "ipython", specifier = ">=8.38.0,<9.0.0" },
+    { name = "jupyter", specifier = ">=1.1.1" },
     { name = "mypy", specifier = ">=1.19.1" },
     { name = "pre-commit", specifier = ">=3.8,<4.0.0" },
     { name = "pytest", specifier = ">=8.2,<9.0.0" },
