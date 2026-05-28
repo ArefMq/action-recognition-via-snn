@@ -35,6 +35,7 @@ class SpikingNeuron(NeuronBase, LayerPlottable, ABC):
         # Internal attributes .....................
         self._mem_rec: Tensor | None = None
         self._spike_rec: Tensor | None = None
+        self._raw_spike_rec: Tensor | None = None  # pre-reduction spikes, used for raster visualisation
 
         # Register learnable parameters as None — subclasses populate
         # these in initialize_parameters(). Using register_parameter
@@ -114,6 +115,7 @@ class SpikingNeuron(NeuronBase, LayerPlottable, ABC):
         self._check_nan(spk_rec, "spk_rec")
 
         self._mem_rec = mem_rec
+        self._raw_spike_rec = spk_rec
         reduced_spike_rec = self.time_reduction_fn(self, spk_rec, mem_rec)
         self._spike_rec = reduced_spike_rec
         self._check_nan(reduced_spike_rec, "output")

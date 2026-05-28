@@ -33,6 +33,9 @@ class SpikingPoolingLayer(SpikingNeuron):
         self.stride = window_to_and_array(kwargs.get("stride", (1, 2, 2)))
         self.kernel = window_to_and_array(kwargs.get("kernel", (1, 2, 2)))
         self.reduction: PoolingReductionFunction = kwargs.get("reduction", max_spike_rate)
+        self._out_spatial: tuple[int, ...] | None = None
 
     def spike_forward(self, x: Tensor) -> tuple[Tensor, Tensor | None]:
-        return self.reduction(x, self.kernel, self.stride), None
+        pooled = self.reduction(x, self.kernel, self.stride)
+        self._out_spatial = tuple(int(s) for s in pooled.shape[3:])
+        return pooled, None

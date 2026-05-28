@@ -1,5 +1,5 @@
 import math
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import torch
 from torch import Tensor
@@ -7,6 +7,7 @@ from typing_extensions import Self
 
 from spikenet.constants import DEFAULT_EPOCHS, DEFAULT_LEARNING_RATE, DEFAULT_MOMENTUM, DEFAULT_WEIGHT_DECAY
 from spikenet.data import DataLoader
+from spikenet.layers.flattening import Flatten
 from spikenet.layers.neuron_base import NeuronBase
 from spikenet.network.criterion import Criterion
 from spikenet.visual.mixins import NetworkPlottable
@@ -84,6 +85,7 @@ class Network(torch.nn.Module, NetworkPlottable):
         epochs: int | None = None,
         learning_rate: float | None = None,
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
+        epoch_callback: Callable[[int, dict[str, float]], None] | None = None,
     ) -> list[dict[str, float]]:
         if isinstance(dataloader, bool):
             return super().train(dataloader)
@@ -138,6 +140,8 @@ class Network(torch.nn.Module, NetworkPlottable):
             }
             history.append(metrics)
             print(f"Epoch [{epoch + 1}/{num_epochs}]  loss={metrics['loss']:.4f}  acc={metrics['accuracy']:.4f}")
+            if epoch_callback is not None:
+                epoch_callback(epoch + 1, metrics)
 
         return history
 
@@ -178,11 +182,20 @@ class Network(torch.nn.Module, NetworkPlottable):
         self,
         input_features: int | None = None,
         output_features: int | None = None,
+        data_shape: tuple[int, ...] | None = None,
     ) -> None:
         if self._is_compiled:
             return
         self._populate_features(input_features, output_features)
         self._is_compiled = True
+
+        if data_shape is not None:
+            # Propagate spatial dims (h, w) through Flatten and any lazy layers by
+            # running a single dummy sample — batch size forced to 1.
+            self.to(self.device)
+            dummy = torch.ones((1, *data_shape[1:]), device=self.device)
+            with torch.no_grad():
+                self(dummy)
 
     def _populate_features(
         self,
@@ -199,6 +212,10 @@ class Network(torch.nn.Module, NetworkPlottable):
                 continue
             if i == 0:
                 continue
+            # Flatten computes its own out_features during forward() from the actual
+            # spatial dims — we can't know it at compile time, so skip it entirely.
+            if isinstance(layer, Flatten):
+                continue
 
             if layer.in_features is None and isinstance(self._layers[i - 1], NeuronBase):
                 layer.in_features = self._layers[i - 1].out_features
@@ -206,10 +223,13 @@ class Network(torch.nn.Module, NetworkPlottable):
                 layer.out_features = layer.in_features
 
     def validate_layers(self) -> bool:
+        # Flatten is excluded: its out_features are only known after a forward pass.
+        # in_features is allowed to be None for layers that follow a Flatten and
+        # self-initialise lazily on the first forward pass.
         return all(
-            not (layer.in_features is None or layer.out_features is None)
+            layer.out_features is not None
             for layer in self._layers
-            if isinstance(layer, NeuronBase)
+            if isinstance(layer, NeuronBase) and not isinstance(layer, Flatten)
         )
 
     @property
@@ -271,6 +291,9 @@ class Network(torch.nn.Module, NetworkPlottable):
         extras: list[str] = []
         if hasattr(layer, "kernel"):
             extras.append(f"kernel={layer.kernel}")
+        out_spatial: tuple[int, ...] | None = getattr(layer, "_out_spatial", None)
+        if out_spatial is not None:
+            extras.append("x".join(str(s) for s in out_spatial))
         if hasattr(layer, "time_reduction_fn") and layer.time_reduction_fn.__name__ != "no_time_reduction":
             extras.append(f"reduction={layer.time_reduction_fn.__name__}")
         if extras:

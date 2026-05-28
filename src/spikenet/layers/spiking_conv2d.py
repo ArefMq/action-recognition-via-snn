@@ -37,6 +37,7 @@ class SpikingConv2D(SpikingDenseLayer):
         self.padding = window_to_and_array(kwargs.get("padding", (0, 0, 0)))
         self.dilation = window_to_and_array(kwargs.get("dilation", (1, 1, 1)))
         self.kernel = window_to_and_array(kwargs.get("kernel", (1, 3, 3)))
+        self._out_spatial: tuple[int, ...] | None = None
 
     def initialize_parameters(self) -> None:
         """Initializes the weights and parameters of the layer."""
@@ -76,8 +77,12 @@ class SpikingConv2D(SpikingDenseLayer):
 
     def spike_forward(self, x: Tensor) -> tuple[Tensor, Tensor | None]:
         (batch_size, nb_in_channels, nb_steps, *_) = x.shape
+        if self.w is None or self.in_features != nb_in_channels:
+            self.in_features = nb_in_channels
+            self.initialize_parameters()
         conv_x = self._apply_conv(x)
         out_shape = conv_x.shape[3:]
+        self._out_spatial = tuple(int(s) for s in out_shape)
 
         # membrane potential
         mem = torch.zeros(

@@ -2,7 +2,7 @@ from spikenet.dataset.spiking_mnist import SpikingMNISTDataLoader
 from spikenet.functions.time_reduction import max_membrane_potential
 from spikenet.layers import Flatten, SpikingConv2D, SpikingDenseLayer, SpikingPoolingLayer
 from spikenet.network.network import Network
-from spikenet.visual import plot_training_history
+from spikenet.visual import plot_network_activity, plot_training_history
 
 # ---------------------------------------------------------------------------
 # Data
@@ -20,16 +20,11 @@ net = Network(epochs=3, learning_rate=1e-3)
 net += SpikingConv2D(16, in_features=1)
 net += SpikingPoolingLayer()
 
-# Second conv block: 16 → 128 feature maps
-net += SpikingConv2D(128)
-net += SpikingPoolingLayer()
-
 # Bridge: reshape (batch, channels, time, h, w) → (batch, time, features)
 net += Flatten()
 
 # Dense hidden layer
 net += SpikingDenseLayer(128)
-net += SpikingDenseLayer(512)
 
 # Output layer: 10 classes. max_membrane_potential collapses the time
 # dimension into a single class score per neuron.
@@ -38,9 +33,11 @@ net += SpikingDenseLayer(10, time_reduction=max_membrane_potential)
 # ---------------------------------------------------------------------------
 # Compile & initialise
 # ---------------------------------------------------------------------------
-# compiled() propagates in_features / out_features through all layers.
-# initialize_parameters() allocates and randomly initialises the weights.
-net.compiled(input_features=1, output_features=10)
+# Peek at one batch to learn the full input shape (channels, time, h, w).
+# compiled(data_shape=...) runs a dummy forward pass so that Flatten and any
+# lazy-init layers resolve their sizes before summarise() is called.
+sample_x, _ = next(iter(data("train")))
+net.compiled(input_features=1, output_features=10, data_shape=sample_x.shape)
 net.initialize_parameters()
 
 net.summarise()
@@ -48,7 +45,7 @@ net.summarise()
 # ---------------------------------------------------------------------------
 # Train & evaluate
 # ---------------------------------------------------------------------------
-history = net.train(data)
+history = net.train(data, epochs=10, epoch_callback=lambda ep, m: plot_network_activity(net, ep, m))
 metrics = net.test(data)
 
 print(f"\nFinal train loss : {history[-1]['loss']:.4f}")
