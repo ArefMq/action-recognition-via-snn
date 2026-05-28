@@ -64,6 +64,8 @@ class SpikingDenseLayer(SpikingNeuron):
 
             # input current
             input_ = h[:, t, :]
+            if self.training and self.input_noise_std > 0.0:
+                input_ = input_ + torch.randn_like(input_) * self.input_noise_std
 
             # membrane potential update
             mem = (mem - rst) * self.beta + input_ * (1.0 - self.beta)

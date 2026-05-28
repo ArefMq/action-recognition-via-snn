@@ -3,6 +3,7 @@ from collections.abc import Callable
 
 from torch import Tensor
 
+from spikenet.constants import B_INIT_MEAN, B_INIT_STD, BETA_INIT_MEAN, BETA_INIT_STD, DEFAULT_INPUT_NOISE_STD
 from spikenet.functions.heaviside import SurrogateHeaviside
 from spikenet.functions.time_reduction import TimeReductionFunction, no_time_reduction
 from spikenet.layers.neuron_base import NeuronBase
@@ -45,10 +46,11 @@ class SpikingNeuron(NeuronBase, LayerPlottable, ABC):
         self.register_parameter("b", None)
 
         # Initialization parameters ..............
-        self.beta_init_std: float = kwargs.get("beta_init_std", 0.01)
-        self.beta_init_mean: float = kwargs.get("beta_init_mean", 0.7)
-        self.b_init_std: float = kwargs.get("b_init_std", 0.01)
-        self.b_init_mean: float = kwargs.get("b_init_mean", 1.0)
+        self.beta_init_std: float = kwargs.get("beta_init_std", BETA_INIT_STD)
+        self.beta_init_mean: float = kwargs.get("beta_init_mean", BETA_INIT_MEAN)
+        self.b_init_std: float = kwargs.get("b_init_std", B_INIT_STD)
+        self.b_init_mean: float = kwargs.get("b_init_mean", B_INIT_MEAN)
+        self.input_noise_std: float = kwargs.get("input_noise_std", DEFAULT_INPUT_NOISE_STD)
 
     @property
     def mem_rec(self) -> Tensor:
@@ -97,7 +99,7 @@ class SpikingNeuron(NeuronBase, LayerPlottable, ABC):
         if self.beta is not None:
             self.beta.data.clamp_(0.0, 1.0)
         if self.b is not None:
-            self.b.data.clamp_(min=0.0)
+            self.b.data.clamp_(min=0.1)
 
     def forward(self, x: Tensor) -> Tensor:
         """The forward pass of the neuron.
