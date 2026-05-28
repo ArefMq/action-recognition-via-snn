@@ -86,6 +86,7 @@ class Network(torch.nn.Module, NetworkPlottable):
         learning_rate: float | None = None,
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
         epoch_callback: Callable[[int, dict[str, float]], None] | None = None,
+        max_grad_norm: float | None = 1.0,
     ) -> list[dict[str, float]]:
         if isinstance(dataloader, bool):
             return super().train(dataloader)
@@ -121,6 +122,8 @@ class Network(torch.nn.Module, NetworkPlottable):
                 encoded = self.criterion.encoding(output)
                 loss = loss_fn(encoded, y)
                 loss.backward()
+                if max_grad_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(self.parameters(), max_grad_norm)
                 optimizer.step()
                 self.clamp()
 
