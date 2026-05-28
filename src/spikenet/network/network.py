@@ -11,6 +11,7 @@ from spikenet.data import DataLoader
 from spikenet.layers.flattening import Flatten
 from spikenet.layers.neuron_base import NeuronBase
 from spikenet.network.criterion import Criterion
+from spikenet.network.metrics import Metrics
 from spikenet.visual.mixins import NetworkPlottable
 
 
@@ -88,7 +89,8 @@ class Network(torch.nn.Module, NetworkPlottable):
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
         epoch_callback: Callable[[int, dict[str, float]], None] | None = None,
         max_grad_norm: float | None = 1.0,
-    ) -> list[dict[str, float]]:
+        run_test: bool = True,
+    ) -> Metrics:
         if isinstance(dataloader, bool):
             return super().train(dataloader)
         super().train()
@@ -107,7 +109,24 @@ class Network(torch.nn.Module, NetworkPlottable):
         loss_fn = self.criterion.get_loss_fn(self)
 
         num_batches_per_epoch = math.ceil(dataloader.len("train") / dataloader.batch_size)
-        history: list[dict[str, float]] = []
+
+        # Epoch-0 baseline: eval pass before any weight updates.
+        super().eval()
+        with torch.no_grad():
+            init_loss, init_correct, init_total, init_batches = 0.0, 0, 0, 0
+            for x, y in dataloader("train"):
+                x, y = x.to(self.device), y.to(self.device)
+                encoded = self.criterion.encoding(self(x))
+                init_loss += loss_fn(encoded, y).item()
+                init_correct += (encoded.argmax(dim=1) == y).sum().item()
+                init_total += y.size(0)
+                init_batches += 1
+        super().train()
+        _init = {"epoch": 0.0, "loss": init_loss / init_batches, "accuracy": init_correct / init_total}
+        epoch_history: list[dict[str, float]] = [_init]
+        batch_history: list[dict[str, float]] = [
+            {"epoch_frac": 0.0, **{k: v for k, v in _init.items() if k != "epoch"}}
+        ]
 
         for epoch in range(num_epochs):
             epoch_loss = 0.0
@@ -150,28 +169,40 @@ class Network(torch.nn.Module, NetworkPlottable):
 
                     epoch_loss += loss.item()
                     predictions = encoded.argmax(dim=1)
-                    correct += (predictions == y).sum().item()
+                    batch_correct = (predictions == y).sum().item()
+                    correct += batch_correct
                     total += y.size(0)
                     num_batches += 1
 
+                    batch_history.append(
+                        {
+                            "epoch_frac": epoch + num_batches / num_batches_per_epoch,
+                            "loss": loss.item(),
+                            "accuracy": batch_correct / y.size(0),
+                        }
+                    )
                     progress.update(task, advance=1, loss=epoch_loss / num_batches, acc=correct / total)
 
             if lr_scheduler is not None:
                 lr_scheduler.step()
 
-            metrics = {
+            epoch_metrics = {
                 "epoch": float(epoch + 1),
                 "loss": epoch_loss / num_batches,
                 "accuracy": correct / total,
             }
-            history.append(metrics)
-            print(f"Epoch [{epoch + 1}/{num_epochs}]  loss={metrics['loss']:.4f}  acc={metrics['accuracy']:.4f}")
+            epoch_history.append(epoch_metrics)
+            print(
+                f"Epoch [{epoch + 1}/{num_epochs}]  loss={epoch_metrics['loss']:.4f}  "
+                f"acc={epoch_metrics['accuracy']:.4f}"
+            )
             if epoch_callback is not None:
-                epoch_callback(epoch + 1, metrics)
+                epoch_callback(epoch + 1, epoch_metrics)
 
-        return history
+        test_metrics = self.test(dataloader, verbose=False) if run_test else None
+        return Metrics(epoch_history, batch_history, test_metrics)
 
-    def test(self, dataloader: DataLoader) -> dict[str, float]:
+    def test(self, dataloader: DataLoader, verbose: bool = True) -> dict[str, float]:
         super().eval()
         self.to(self.device)
 
@@ -200,7 +231,8 @@ class Network(torch.nn.Module, NetworkPlottable):
             "loss": test_loss / num_batches,
             "accuracy": correct / total,
         }
-        print(f"Test  loss={metrics['loss']:.4f}  acc={metrics['accuracy']:.4f}")
+        if verbose:
+            print(f"Test  loss={metrics['loss']:.4f}  acc={metrics['accuracy']:.4f}")
         return metrics
 
     # ~~~~~~~~~~~~~~~~~~~~~~~ Compile Network ~~~~~~~~~~~~~~~~~~~~~~~~~

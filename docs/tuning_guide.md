@@ -162,6 +162,79 @@ The network never learned class-discriminative features. Usually one of:
 
 ---
 
+## Using `dry_run` to validate initial weights
+
+`net.dry_run(data)` runs one forward pass (eval mode, no noise) right after you compile and initialise the network — before any training. It prints a colour-coded table of the firing rate for every spiking layer:
+
+```
+     Dry run — initial weight check
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Layer              ┃ Shape     ┃ Firing rate ┃ Status                                   ┃
+┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ SpikingDenseLayer  │ 196 → 128 │       21.4% │ ✓                                        │
+│ SpikingDenseLayer  │ 128 → 10  │       38.2% │ ✓                                        │
+└────────────────────┴───────────┴─────────────┴──────────────────────────────────────────┘
+All layers within healthy range (5–80 %).
+```
+
+**Colour coding:**
+
+| Rate | Colour | Meaning |
+|---|---|---|
+| 5–50 % | green ✓ | healthy |
+| 50–80 % | yellow △ | slightly high; consider raising `b_init_mean` |
+| > 80 % | red ✗ | too high — raise `b_init_mean` or lower `w_init_mean` |
+| < 5 % | red ✗ | too low — lower `b_init_mean` |
+
+**Recommended workflow before every training run:**
+
+```python
+net.compiled(input_features=1, output_features=10, data_shape=sample_x.shape)
+net.initialize_parameters()
+net.summarise()
+net.dry_run(data)          # check rates — fix any red before proceeding
+m = net.train(data, ...)
+```
+
+If any layer shows red, adjust the flagged layer's `b_init_mean` (use the calibration formula above), call `net.initialize_parameters()` again to re-randomize with the new value, and re-run `dry_run` until all layers are green or yellow.
+
+**Why eval mode?** `dry_run` disables input noise (`self.training = False`) so you see the pure weight-driven baseline. If the baseline is already over-firing before any noise is added, training will be unstable regardless of noise settings.
+
+---
+
+## Tracking training with `Metrics`
+
+`net.train()` returns a `Metrics` object instead of a plain list. It holds both epoch-level and per-batch data, and supports `+=` to concatenate multiple training phases.
+
+```python
+m = net.train(data, learning_rate=1e-3, epochs=3)
+m += net.train(data, learning_rate=1e-4, epochs=7)  # fine-tune at lower LR
+
+m.print()   # rich table with per-epoch loss and accuracy
+m.plot()    # loss + accuracy plots with intra-epoch oscillation and phase separator
+```
+
+`m.plot()` shows:
+- **thin transparent line** — per-batch values (reveals within-epoch oscillation)
+- **thick line** — epoch averages
+- **dashed vertical line** — marks where the `+=` phase boundary falls
+- **dashed horizontal line** — test set reference (auto-run at end of each `train()` call)
+
+Useful patterns:
+
+```python
+# Gate training on dry run result
+if net.dry_run(data):
+    m = net.train(data, epochs=10)
+    m.plot()
+
+# Access final metrics programmatically
+print(m.loss, m.accuracy)
+print(m.test)     # {"loss": ..., "accuracy": ...}
+```
+
+---
+
 ## Typical configuration for a dense SNN on MNIST
 
 ```python
@@ -172,12 +245,10 @@ net += SpikingDenseLayer(10,
     w_init_mean=0.0,                                    # decouple from upstream rate
 )
 
-history = net.train(
-    data,
-    learning_rate=1e-3,
-    epochs=5,
-    max_grad_norm=1.0,
-)
-```
+net.compiled(input_features=1, output_features=10, data_shape=sample_x.shape)
+net.initialize_parameters()
+net.dry_run(data)                                       # validate before training
 
-Then inspect the activity callback output after epoch 1. Adjust `b_init_mean` of any layer whose firing rate is outside 10–50%.
+m = net.train(data, learning_rate=1e-3, epochs=5, max_grad_norm=1.0)
+m.plot()
+```

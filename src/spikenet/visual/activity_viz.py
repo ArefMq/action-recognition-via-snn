@@ -42,6 +42,7 @@ def plot_network_activity(
         assert layer._raw_spike_rec is not None
         rate = layer._raw_spike_rec.float().mean().item() * 100
         print(f"    {layer.name}: {rate:.1f}% avg firing")
+    print("")
 
     n = len(active)
     fig, axes = plt.subplots(2, n, figsize=(max(4 * n, 6), 7))
