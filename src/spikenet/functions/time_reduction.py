@@ -35,19 +35,21 @@ def spike_rate(neuron: SpikingNeuron, spk_rec: Tensor, _: Tensor) -> Tensor:
 
 
 def spike_time(neuron: SpikingNeuron, spk_rec: Tensor, _: Tensor) -> Tensor:
-    """Reduce the spike recording based on the time of the spikes. In other words, the neuron that fired the earliest
-    through out the time, would fire. This methods uses the index of the maximum value to select the firing neuron.
+    """Reduce the spike recording based on the time of the spikes. Each neuron's score is a
+    weighted sum of its spikes, where earlier spikes receive a higher weight (T - t). A neuron
+    that fires at t=0 scores T; one that never fires scores 0. This preserves the first-to-spike
+    semantics while keeping the output differentiable through spk_rec.
 
     Args:
-    neuron: Spiking neuron
+        neuron: Spiking neuron
         spk_rec: Spike recordings with shape (batch_size, time_steps, num_neurons)
 
     Returns:
-        Spike times with shape (batch_size, num_neurons)
+        Early-spike scores with shape (batch_size, num_neurons)
     """
-    max_data = torch.max(spk_rec, 1).indices
-    max_min_data = max_data.min(1)[1]
-    return torch.nn.functional.one_hot(max_min_data, num_classes=neuron.out_features).to(torch.float32)
+    T = spk_rec.shape[1]
+    time_weights = T - torch.arange(T, dtype=spk_rec.dtype, device=spk_rec.device)
+    return torch.einsum("btn,t->bn", spk_rec, time_weights)
 
 
 def max_membrane_potential(neuron: SpikingNeuron, _: Tensor, mem_rec: Tensor) -> Tensor:
