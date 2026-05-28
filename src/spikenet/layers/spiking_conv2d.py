@@ -39,14 +39,14 @@ class SpikingConv2D(SpikingDenseLayer):
         self.kernel = window_to_and_array(kwargs.get("kernel", (1, 3, 3)))
         self._out_spatial: tuple[int, ...] | None = None
 
-    def initialize_parameters(self) -> None:
+    def initialize_parameters(self, device: torch.device | str | None = None) -> None:
         """Initializes the weights and parameters of the layer."""
         self.w = torch.nn.Parameter(
-            torch.empty((self.out_features, self.in_features, *self.kernel)),
+            torch.empty((self.out_features, self.in_features, *self.kernel), device=device),
             requires_grad=True,
         )
-        self.beta = torch.nn.Parameter(torch.empty(1), requires_grad=True)
-        self.b = torch.nn.Parameter(torch.empty(self.out_features), requires_grad=True)
+        self.beta = torch.nn.Parameter(torch.empty(1, device=device), requires_grad=True)
+        self.b = torch.nn.Parameter(torch.empty(self.out_features, device=device), requires_grad=True)
 
         torch.nn.init.normal_(
             self.w,
@@ -79,8 +79,7 @@ class SpikingConv2D(SpikingDenseLayer):
         (batch_size, nb_in_channels, nb_steps, *_) = x.shape
         if self.w is None or self.in_features != nb_in_channels:
             self.in_features = nb_in_channels
-            self.initialize_parameters()
-            self.to(x.device)
+            self.initialize_parameters(device=x.device)
         conv_x = self._apply_conv(x)
         out_shape = conv_x.shape[3:]
         self._out_spatial = tuple(int(s) for s in out_shape)

@@ -36,7 +36,7 @@ class NeuronBase(torch.nn.Module, ABC):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Runs the forward pass of the layer."""
 
-    def initialize_parameters(self) -> None:
+    def initialize_parameters(self, device: torch.device | str | None = None) -> None:
         """Initialise the parameters of the layer, usually with the internal mean and deviation"""
 
     def clamp(self) -> None:

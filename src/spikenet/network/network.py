@@ -46,7 +46,7 @@ class Network(torch.nn.Module, NetworkPlottable):
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self._is_compiled: bool = False
-        self._layers: list[torch.nn.Module] = []
+        self._layers: torch.nn.ModuleList = torch.nn.ModuleList()
 
     # ~~~~~~~~~~~~~~~~~~~~~ Constructing Network ~~~~~~~~~~~~~~~~~~~~~
     def add_layer(
@@ -306,7 +306,7 @@ class Network(torch.nn.Module, NetworkPlottable):
         assert self.is_compiled, "Network must be compiled before initializing parameters"
         for layer in self._layers:
             if isinstance(layer, NeuronBase):
-                layer.initialize_parameters()
+                layer.initialize_parameters(device=self.device)
 
     def parameters(self) -> Iterator[torch.nn.Parameter]:
         for layer in self._layers:

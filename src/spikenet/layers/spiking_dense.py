@@ -29,11 +29,13 @@ class SpikingDenseLayer(SpikingNeuron):
         super().__init__(out_features=out_features, name=kwargs.pop("name", "SpikingDenseLayer"), **kwargs)
         self.clamp_membrane = kwargs.get("clamp_membrane", True)
 
-    def initialize_parameters(self) -> None:
+    def initialize_parameters(self, device: torch.device | str | None = None) -> None:
         """Initializes the weights and parameters of the layer."""
-        self.w = torch.nn.Parameter(torch.empty((self.in_features, self.out_features)), requires_grad=True)
-        self.beta = torch.nn.Parameter(torch.empty(1), requires_grad=True)
-        self.b = torch.nn.Parameter(torch.empty(self.out_features), requires_grad=True)
+        self.w = torch.nn.Parameter(
+            torch.empty((self.in_features, self.out_features), device=device), requires_grad=True
+        )
+        self.beta = torch.nn.Parameter(torch.empty(1, device=device), requires_grad=True)
+        self.b = torch.nn.Parameter(torch.empty(self.out_features, device=device), requires_grad=True)
 
         torch.nn.init.normal_(
             self.w,
@@ -46,8 +48,7 @@ class SpikingDenseLayer(SpikingNeuron):
     def spike_forward(self, x: Tensor) -> tuple[Tensor, Tensor | None]:
         if self.w is None or self.in_features != x.shape[2]:
             self.in_features = x.shape[2]
-            self.initialize_parameters()
-            self.to(x.device)
+            self.initialize_parameters(device=x.device)
         batch_size, nb_steps = x.shape[0], x.shape[1]
         h = torch.einsum("abc,cd->abd", x, self.w)
 
