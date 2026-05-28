@@ -2,6 +2,7 @@ import math
 from collections.abc import Callable, Iterator
 
 import torch
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from torch import Tensor
 from typing_extensions import Self
 
@@ -105,6 +106,7 @@ class Network(torch.nn.Module, NetworkPlottable):
         optimizer = self.criterion.get_optim(self, lr=learning_rate)
         loss_fn = self.criterion.get_loss_fn(self)
 
+        num_batches_per_epoch = math.ceil(dataloader.len("train") / dataloader.batch_size)
         history: list[dict[str, float]] = []
 
         for epoch in range(num_epochs):
@@ -113,25 +115,46 @@ class Network(torch.nn.Module, NetworkPlottable):
             total = 0
             num_batches = 0
 
-            for x, y in dataloader("train"):
-                x = x.to(self.device)
-                y = y.to(self.device)
+            with Progress(
+                SpinnerColumn(),
+                TextColumn(" [bold cyan]Epoch {task.fields[ep]}/{task.fields[total_ep]}[/bold cyan]"),
+                BarColumn(bar_width=40),
+                MofNCompleteColumn(),
+                TextColumn("  [yellow]loss={task.fields[loss]:.4f}[/yellow]"),
+                TextColumn("[green]acc={task.fields[acc]:.1%}[/green]"),
+                TimeElapsedColumn(),
+                transient=True,
+            ) as progress:
+                task = progress.add_task(
+                    "",
+                    total=num_batches_per_epoch,
+                    ep=epoch + 1,
+                    total_ep=num_epochs,
+                    loss=0.0,
+                    acc=0.0,
+                )
 
-                optimizer.zero_grad()
-                output = self(x)
-                encoded = self.criterion.encoding(output)
-                loss = loss_fn(encoded, y)
-                loss.backward()
-                if max_grad_norm is not None:
-                    torch.nn.utils.clip_grad_norm_(self.parameters(), max_grad_norm)
-                optimizer.step()
-                self.clamp()
+                for x, y in dataloader("train"):
+                    x = x.to(self.device)
+                    y = y.to(self.device)
 
-                epoch_loss += loss.item()
-                predictions = encoded.argmax(dim=1)
-                correct += (predictions == y).sum().item()
-                total += y.size(0)
-                num_batches += 1
+                    optimizer.zero_grad()
+                    output = self(x)
+                    encoded = self.criterion.encoding(output)
+                    loss = loss_fn(encoded, y)
+                    loss.backward()
+                    if max_grad_norm is not None:
+                        torch.nn.utils.clip_grad_norm_(self.parameters(), max_grad_norm)
+                    optimizer.step()
+                    self.clamp()
+
+                    epoch_loss += loss.item()
+                    predictions = encoded.argmax(dim=1)
+                    correct += (predictions == y).sum().item()
+                    total += y.size(0)
+                    num_batches += 1
+
+                    progress.update(task, advance=1, loss=epoch_loss / num_batches, acc=correct / total)
 
             if lr_scheduler is not None:
                 lr_scheduler.step()
@@ -261,6 +284,64 @@ class Network(torch.nn.Module, NetworkPlottable):
         for layer in self._layers:
             if isinstance(layer, NeuronBase):
                 layer.clamp()
+
+    def dry_run(self, dataloader: DataLoader) -> bool:
+        """Forward pass on one batch to check whether initial firing rates are healthy.
+
+        Prints a per-layer table with firing rate and a colour-coded status:
+          green  5-50 %  — healthy range
+          yellow 50-80 % — slightly high; consider raising b_init_mean
+          red    > 80 %  — too high; raise b_init_mean or lower w_init_mean
+          red    < 5 %   — too low; lower b_init_mean
+
+        Returns True if every spiking layer is within 5-80 %.
+        """
+        from rich.console import Console
+        from rich.table import Table
+
+        from spikenet.layers.spiking_base import SpikingNeuron
+
+        self.eval()
+        self.to(self.device)
+        x, _ = next(iter(dataloader("train")))
+        with torch.no_grad():
+            self(x.to(self.device))
+        self.train()
+
+        console = Console()
+        table = Table(title="Dry run — initial weight check", show_header=True, header_style="bold")
+        table.add_column("Layer", style="dim")
+        table.add_column("Shape")
+        table.add_column("Firing rate", justify="right")
+        table.add_column("Status")
+
+        all_ok = True
+        for layer in self._layers:
+            if not isinstance(layer, SpikingNeuron) or layer._raw_spike_rec is None:
+                continue
+            rate = layer._raw_spike_rec.float().mean().item()
+            in_f = str(layer.in_features) if layer.in_features is not None else "?"
+            out_f = str(layer.out_features) if layer.out_features is not None else "?"
+
+            if rate > 0.80:
+                rate_str, status = f"[red]{rate:.1%}[/red]", "[red]✗ too high — increase b_init_mean[/red]"
+                all_ok = False
+            elif rate < 0.05:
+                rate_str, status = f"[red]{rate:.1%}[/red]", "[red]✗ too low  — decrease b_init_mean[/red]"
+                all_ok = False
+            elif rate > 0.50:
+                rate_str, status = f"[yellow]{rate:.1%}[/yellow]", "[yellow]△ slightly high[/yellow]"
+            else:
+                rate_str, status = f"[green]{rate:.1%}[/green]", "[green]✓[/green]"
+
+            table.add_row(layer.name, f"{in_f} → {out_f}", rate_str, status)
+
+        console.print(table)
+        if all_ok:
+            console.print("[green]All layers within healthy range (5-80 %).[/green]\n")
+        else:
+            console.print("[yellow]⚠  Adjust the flagged layers before training.[/yellow]\n")
+        return all_ok
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~ Visualisation ~~~~~~~~~~~~~~~~~~~~~~~~
     def summarise(self) -> None:
