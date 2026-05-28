@@ -80,6 +80,7 @@ class SpikingConv2D(SpikingDenseLayer):
         if self.w is None or self.in_features != nb_in_channels:
             self.in_features = nb_in_channels
             self.initialize_parameters()
+            self.to(x.device)
         conv_x = self._apply_conv(x)
         out_shape = conv_x.shape[3:]
         self._out_spatial = tuple(int(s) for s in out_shape)

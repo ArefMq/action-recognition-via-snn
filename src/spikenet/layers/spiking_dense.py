@@ -47,6 +47,7 @@ class SpikingDenseLayer(SpikingNeuron):
         if self.w is None or self.in_features != x.shape[2]:
             self.in_features = x.shape[2]
             self.initialize_parameters()
+            self.to(x.device)
         batch_size, nb_steps = x.shape[0], x.shape[1]
         h = torch.einsum("abc,cd->abd", x, self.w)
 
