@@ -3,8 +3,8 @@
 A PyTorch framework for building and training Spiking Neural Networks (SNNs). Uses Leaky Integrate-and-Fire (LIF) neuron dynamics with surrogate gradient backpropagation — so you get biologically plausible spike-based computation with standard gradient descent.
 
 Built as part of my thesis on action recognition via SNNs.
-- [Original thesis (Farsi)](#) — _link coming_
-- [English translation](#) — _link coming_
+- [Original thesis (Farsi)](docs/thesis_fa.pdf)
+- [English translation](docs/thesis_en.pdf)
 
 ---
 
@@ -63,4 +63,3 @@ See [examples/](examples/) for runnable scripts.
 ---
 
 ## > [Notebooks](notebooks/) — start here for a guided walkthrough
-
